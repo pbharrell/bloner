@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/pbharrell/bloner/graphics"
+	"slices"
 )
 
 var (
@@ -42,6 +43,7 @@ type Game struct {
 	hand     *Hand
 	oppHands [3]*Hand
 	drawPile DrawPile
+	trick    Trick
 }
 
 func (g *Game) getOppHand(pos PlayPos) *Hand {
@@ -53,13 +55,19 @@ func (g *Game) init() {
 		g.inited = true
 	}()
 
-	g.hand = CreateHand(1, Bottom)
-	g.oppHands[0] = CreateHand(5, Left)
-	g.oppHands[1] = CreateHand(5, Top)
-	g.oppHands[2] = CreateHand(5, Right)
-
 	g.drawPile.Sprite = *graphics.CreateSpriteFromFile("./assets/ace_of_spades.png", .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
+	g.drawPile.Sprite.X = screenWidth/2 - g.drawPile.Sprite.ImageWidth - 20
+	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.drawPile.shuffleDrawPile()
+
+	g.hand = CreateHand(5, Bottom, &g.drawPile)
+	g.oppHands[0] = CreateHand(5, Left, &g.drawPile)
+	g.oppHands[1] = CreateHand(5, Top, &g.drawPile)
+	g.oppHands[2] = CreateHand(5, Right, &g.drawPile)
+
+	g.trick.Pile = append(g.trick.Pile, g.drawPile.drawCard())
+	g.trick.X = screenWidth/2 + 20
+	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 }
 
 func (g *Game) Update() error {
@@ -74,16 +82,18 @@ func (g *Game) Update() error {
 		for i := len(g.hand.Cards) - 1; i >= 0; i-- {
 			card := g.hand.Cards[i]
 			if card.Sprite.In(x, y) {
-				println("CARD CLICKED", card.Sprite.X, card.Sprite.Y)
+				g.trick.playCard(g.hand.Cards[i])
+				g.hand.Cards = slices.Delete(g.hand.Cards, i, i+1)
+				g.hand.ArrangeHand()
 				break
 			}
 		}
 
-		if g.drawPile.Sprite.In(x, y) {
+		if g.drawPile.Sprite.In(x, y) && len(g.hand.Cards) < 5 {
 			card := g.drawPile.drawCard()
 			if card != nil {
 				g.hand.Cards = append(g.hand.Cards, card)
-				ArrangeHand(g.hand.Cards, Bottom, screenWidth, 60, screenHeight-g.hand.Cards[0].Sprite.ImageHeight-20)
+				g.hand.ArrangeHand()
 			}
 		}
 	}
@@ -123,6 +133,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op := ebiten.DrawImageOptions{}
 
 	g.drawPile.Draw(screen, op)
+	g.trick.Draw(screen, op)
 	g.hand.Draw(screen, op)
 
 	for _, hand := range g.oppHands {

@@ -16,7 +16,7 @@ func (p *DrawPile) shuffleDrawPile() {
 	p.Pile = make([]int, 4*6)
 
 	for i := range p.Pile {
-		p.Pile[i] = 5 //i
+		p.Pile[i] = i
 	}
 
 	for i := range p.Pile {

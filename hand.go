@@ -18,18 +18,22 @@ type Hand struct {
 	PlayPos         PlayPos
 	SideLen         int
 	fullPercentSpan int
+	perpAxisPos     int
 }
 
-func CreateHand(handSize int, playPos PlayPos) *Hand {
+func CreateHand(handSize int, playPos PlayPos, drawPile *DrawPile) *Hand {
 	if handSize == 0 {
 		return nil
 	}
 
 	cards := make([]*Card, handSize)
 	for i := range cards {
-		// Create card at placeholder position of 0,0
-		cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0)
-		//                    ^^^^^^^^^^^ replace these with DrawPile.GetCard()
+		if drawPile != nil {
+			cards[i] = drawPile.drawCard()
+			println(cards[i].Suit, cards[i].Number)
+		} else {
+			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0)
+		}
 	}
 
 	var (
@@ -60,15 +64,18 @@ func CreateHand(handSize int, playPos PlayPos) *Hand {
 		perpAxisPos = screenWidth - cards[0].Sprite.ImageHeight - 20
 	}
 
-	// Calculate and set the card position
-	ArrangeHand(cards, playPos, sideLen, percentHandSpan, perpAxisPos)
-
-	return &Hand{
+	hand := &Hand{
 		Cards:           cards,
 		PlayPos:         playPos,
 		SideLen:         sideLen,
 		fullPercentSpan: percentHandSpan,
+		perpAxisPos:     perpAxisPos,
 	}
+
+	// Calculate and set the card position
+	hand.ArrangeHand()
+
+	return hand
 }
 
 func (h *Hand) Update() {
@@ -83,10 +90,17 @@ func (h *Hand) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 	}
 }
 
-func ArrangeHand(cards []*Card, playPos PlayPos, sideLen int,
-	percentHandSpan int, perpAxisHeight int) {
+func (h *Hand) ArrangeHand() {
+	cards := h.Cards
+	percentHandSpan := h.fullPercentSpan
+	sideLen := h.SideLen
+
 	// Assume that all the cards are of the same width
 	numCards := len(cards)
+	if numCards == 0 {
+		return
+	}
+
 	cardWidth := cards[0].Sprite.ImageWidth
 
 	handSpan := int(float32(percentHandSpan) * .01 * float32(sideLen))
@@ -96,21 +110,21 @@ func ArrangeHand(cards []*Card, playPos PlayPos, sideLen int,
 
 	for cardInd := range cards {
 		playAxisPos := handStart + (cardInd * (cardWidth + cardMargin))
-		switch playPos {
+		switch h.PlayPos {
 		case Bottom:
 			cards[cardInd].Sprite.X = playAxisPos
-			cards[cardInd].Sprite.Y = perpAxisHeight
+			cards[cardInd].Sprite.Y = h.perpAxisPos
 			cards[cardInd].Sprite.Angle = 0
 		case Left:
-			cards[cardInd].Sprite.X = perpAxisHeight
+			cards[cardInd].Sprite.X = h.perpAxisPos
 			cards[cardInd].Sprite.Y = playAxisPos
 			cards[cardInd].Sprite.Angle = 90
 		case Top:
 			cards[cardInd].Sprite.X = playAxisPos
-			cards[cardInd].Sprite.Y = perpAxisHeight
+			cards[cardInd].Sprite.Y = h.perpAxisPos
 			cards[cardInd].Sprite.Angle = 180
 		case Right:
-			cards[cardInd].Sprite.X = perpAxisHeight
+			cards[cardInd].Sprite.X = h.perpAxisPos
 			cards[cardInd].Sprite.Y = playAxisPos
 			cards[cardInd].Sprite.Angle = 270
 		}
