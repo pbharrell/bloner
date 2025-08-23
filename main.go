@@ -60,12 +60,12 @@ func (g *Game) init() {
 	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.drawPile.shuffleDrawPile()
 
-	g.hand = CreateHand(5, Bottom, &g.drawPile)
-	g.oppHands[0] = CreateHand(5, Left, &g.drawPile)
-	g.oppHands[1] = CreateHand(5, Top, &g.drawPile)
-	g.oppHands[2] = CreateHand(5, Right, &g.drawPile)
+	g.hand = CreateHand(5, Bottom, .35, &g.drawPile)
+	g.oppHands[0] = CreateHand(5, Left, .35, &g.drawPile)
+	g.oppHands[1] = CreateHand(5, Top, .35, &g.drawPile)
+	g.oppHands[2] = CreateHand(5, Right, .35, &g.drawPile)
 
-	g.trick.Pile = append(g.trick.Pile, g.drawPile.drawCard())
+	g.trick.Pile = append(g.trick.Pile, g.drawPile.drawCard(.35, 0, 0, 0))
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 }
@@ -90,7 +90,7 @@ func (g *Game) Update() error {
 		}
 
 		if g.drawPile.Sprite.In(x, y) && len(g.hand.Cards) < 5 {
-			card := g.drawPile.drawCard()
+			card := g.drawPile.drawCard(.35, 0, 0, 0)
 			if card != nil {
 				g.hand.Cards = append(g.hand.Cards, card)
 				g.hand.ArrangeHand()

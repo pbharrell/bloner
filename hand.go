@@ -21,7 +21,7 @@ type Hand struct {
 	perpAxisPos     int
 }
 
-func CreateHand(handSize int, playPos PlayPos, drawPile *DrawPile) *Hand {
+func CreateHand(handSize int, playPos PlayPos, scale float64, drawPile *DrawPile) *Hand {
 	if handSize == 0 {
 		return nil
 	}
@@ -29,7 +29,7 @@ func CreateHand(handSize int, playPos PlayPos, drawPile *DrawPile) *Hand {
 	cards := make([]*Card, handSize)
 	for i := range cards {
 		if drawPile != nil {
-			cards[i] = drawPile.drawCard()
+			cards[i] = drawPile.drawCard(scale, 0, 0, 0)
 			println(cards[i].Suit, cards[i].Number)
 		} else {
 			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0)

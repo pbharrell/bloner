@@ -29,7 +29,7 @@ func (p *DrawPile) setDrawPile(pile []int) {
 	p.Pile = pile
 }
 
-func (p *DrawPile) drawCard() *Card {
+func (p *DrawPile) drawCard(scale float64, x int, y int, angle int) *Card {
 	if len(p.Pile) == 0 {
 		return nil
 	}
@@ -38,7 +38,7 @@ func (p *DrawPile) drawCard() *Card {
 	suit := Suit(num / 6)
 	number := Number(num % 6)
 
-	card := CreateCard(suit, number, .35, 0, 0, 0)
+	card := CreateCard(suit, number, scale, x, y, angle)
 
 	// Drop the last card off the pile
 	p.Pile = p.Pile[:len(p.Pile)-1]
