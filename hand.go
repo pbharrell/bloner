@@ -13,6 +13,10 @@ const (
 	Right
 )
 
+var (
+	maxSpan = [5]int{0, 25, 40, 50, 60}
+)
+
 type Hand struct {
 	Cards           []*Card
 	PlayPos         PlayPos
@@ -30,7 +34,6 @@ func CreateHand(handSize int, playPos PlayPos, scale float64, drawPile *DrawPile
 	for i := range cards {
 		if drawPile != nil {
 			cards[i] = drawPile.drawCard(scale, 0, 0, 0)
-			println(cards[i].Suit, cards[i].Number)
 		} else {
 			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0)
 		}
@@ -92,13 +95,19 @@ func (h *Hand) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 
 func (h *Hand) ArrangeHand() {
 	cards := h.Cards
-	percentHandSpan := h.fullPercentSpan
 	sideLen := h.SideLen
 
 	// Assume that all the cards are of the same width
 	numCards := len(cards)
 	if numCards == 0 {
 		return
+	}
+
+	var percentHandSpan int
+	if len(cards) <= len(maxSpan) {
+		percentHandSpan = min(h.fullPercentSpan, maxSpan[len(cards)-1])
+	} else {
+		percentHandSpan = h.fullPercentSpan
 	}
 
 	cardWidth := cards[0].Sprite.ImageWidth
