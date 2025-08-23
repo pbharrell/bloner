@@ -70,31 +70,25 @@ func (g *Game) Update() error {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 
-		for _, card := range g.hand.Cards {
+		// Look through sprites in reverse order since a card on the right is on top
+		for i := len(g.hand.Cards) - 1; i >= 0; i-- {
+			card := g.hand.Cards[i]
 			if card.Sprite.In(x, y) {
 				println("CARD CLICKED", card.Sprite.X, card.Sprite.Y)
+				break
 			}
 		}
 
 		if g.drawPile.Sprite.In(x, y) {
 			card := g.drawPile.drawCard()
-			g.hand.Cards = append(g.hand.Cards, card)
-			ArrangeHand(g.hand.Cards, Bottom, screenWidth, 60, screenHeight-g.hand.Cards[0].Sprite.ImageHeight-20)
+			if card != nil {
+				g.hand.Cards = append(g.hand.Cards, card)
+				ArrangeHand(g.hand.Cards, Bottom, screenWidth, 60, screenHeight-g.hand.Cards[0].Sprite.ImageHeight-20)
+			}
 		}
 	}
 
-	// Decrease the number of the sprites.
-	// if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || g.leftTouched() {
-	// 	if len(g.cards) > 0 {
-	// 		g.cards = g.cards[:len(g.cards)-1]
-	// 	}
-	// }
-
-	// Increase the number of the sprites.
-	// if ebiten.IsKeyPressed(ebiten.KeyArrowRight) || g.rightTouched() {
-	// 	defaultSprite := graphics.CreateCard()
-	// 	g.cards = append(g.cards, &defaultSprite)
-	// }
+	g.drawPile.Update()
 
 	// Add a card to the mix.
 	if ebiten.IsKeyPressed(ebiten.KeyEnter) {
@@ -114,10 +108,6 @@ func (g *Game) Update() error {
 		// g.cards = append(g.cards, card)
 	}
 
-	// for _, card := range g.cards {
-	// 	card.Update()
-	// }
-
 	return nil
 }
 
@@ -130,15 +120,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// some conditions e.g. all the rendering sources and targets are same.
 	// For more detail, see:
 	// https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2#Image.DrawImage
-	// w, h := ebitenImage.Bounds().Dx(), ebitenImage.Bounds().Dy()
-	// for i := range g.cards {
 	op := ebiten.DrawImageOptions{}
-	// op.ColorScale.ScaleAlpha(0.25)
-	// 	g.cards[i].Sprite.Draw(screen, &op)
-	// }
 
-	g.hand.Draw(screen, op)
 	g.drawPile.Draw(screen, op)
+	g.hand.Draw(screen, op)
 
 	for _, hand := range g.oppHands {
 		hand.Draw(screen, op)

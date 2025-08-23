@@ -27,6 +27,7 @@ type Sprite struct {
 	Vx          int
 	Vy          int
 	Vangle      int
+	Visible     bool
 }
 
 func LoadImage(i *[]byte) *ebiten.Image {
@@ -63,6 +64,7 @@ func CreateSprite(image *ebiten.Image, alphaImage *image.Alpha, scale float64, x
 		Vx:          vx,
 		Vy:          vy,
 		Vangle:      vangle,
+		Visible:     true,
 	}
 }
 
@@ -114,6 +116,10 @@ func (s *Sprite) Update() {
 }
 
 func (s *Sprite) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
+	if !s.Visible {
+		return
+	}
+
 	w, h := s.ImageWidth, s.ImageHeight
 	op.GeoM.Scale(s.ImageScale, s.ImageScale)
 	op.GeoM.Translate(-float64(w)/2, -float64(h)/2)

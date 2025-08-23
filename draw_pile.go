@@ -38,12 +38,20 @@ func (p *DrawPile) drawCard() *Card {
 	suit := Suit(num / 6)
 	number := Number(num % 6)
 
-	card := CreateCard(suit, number, 0, 0, 0, 0)
+	card := CreateCard(suit, number, .35, 0, 0, 0)
 
 	// Drop the last card off the pile
 	p.Pile = p.Pile[:len(p.Pile)-1]
 
 	return card
+}
+
+func (p *DrawPile) Update() {
+	if len(p.Pile) == 0 {
+		p.Sprite.Visible = false
+	} else if !p.Sprite.Visible {
+		p.Sprite.Visible = true
+	}
 }
 
 func (p *DrawPile) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
