@@ -1,14 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"image/color"
 	_ "image/png"
 	"log"
-	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/pbharrell/bloner/graphics"
 )
 
@@ -26,18 +26,26 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	initCardImages()
 }
 
 const (
-	screenWidth  = 320
-	screenHeight = 240
+	screenWidth  = 720
+	screenHeight = 540
 	maxAngle     = 360
 )
 
 type Game struct {
-	touchIDs []ebiten.TouchID
-	sprites  []*graphics.Sprite
 	inited   bool
+	touchIDs []ebiten.TouchID
+	hand     *Hand
+	oppHands [3]*Hand
+	drawPile DrawPile
+}
+
+func (g *Game) getOppHand(pos PlayPos) *Hand {
+	return g.oppHands[pos-1]
 }
 
 func (g *Game) init() {
@@ -45,77 +53,77 @@ func (g *Game) init() {
 		g.inited = true
 	}()
 
-	// g.sprites = make([]*graphics.Sprite, 0)
-}
+	g.hand = CreateHand(1, Bottom)
+	g.oppHands[0] = CreateHand(5, Left)
+	g.oppHands[1] = CreateHand(5, Top)
+	g.oppHands[2] = CreateHand(5, Right)
 
-func (g *Game) leftTouched() bool {
-	for _, id := range g.touchIDs {
-		x, _ := ebiten.TouchPosition(id)
-		if x < screenWidth/2 {
-			return true
-		}
-	}
-	return false
-}
-
-func (g *Game) rightTouched() bool {
-	for _, id := range g.touchIDs {
-		x, _ := ebiten.TouchPosition(id)
-		if x >= screenWidth/2 {
-			return true
-		}
-	}
-	return false
+	g.drawPile.Sprite = *graphics.CreateSpriteFromFile("./assets/ace_of_spades.png", .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
+	g.drawPile.shuffleDrawPile()
 }
 
 func (g *Game) Update() error {
 	if !g.inited {
 		g.init()
 	}
-	g.touchIDs = ebiten.AppendTouchIDs(g.touchIDs[:0])
 
-	// Decrease the number of the sprites.
-	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || g.leftTouched() {
-		if len(g.sprites) > 0 {
-			g.sprites = g.sprites[:len(g.sprites)-1]
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
+
+		for _, card := range g.hand.Cards {
+			if card.Sprite.In(x, y) {
+				println("CARD CLICKED", card.Sprite.X, card.Sprite.Y)
+			}
+		}
+
+		if g.drawPile.Sprite.In(x, y) {
+			card := g.drawPile.drawCard()
+			g.hand.Cards = append(g.hand.Cards, card)
+			ArrangeHand(g.hand.Cards, Bottom, screenWidth, 60, screenHeight-g.hand.Cards[0].Sprite.ImageHeight-20)
 		}
 	}
 
+	// Decrease the number of the sprites.
+	// if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) || g.leftTouched() {
+	// 	if len(g.cards) > 0 {
+	// 		g.cards = g.cards[:len(g.cards)-1]
+	// 	}
+	// }
+
 	// Increase the number of the sprites.
-	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) || g.rightTouched() {
-		defaultSprite := graphics.DefaultSprite()
-		g.sprites = append(g.sprites, &defaultSprite)
-	}
+	// if ebiten.IsKeyPressed(ebiten.KeyArrowRight) || g.rightTouched() {
+	// 	defaultSprite := graphics.CreateCard()
+	// 	g.cards = append(g.cards, &defaultSprite)
+	// }
 
 	// Add a card to the mix.
 	if ebiten.IsKeyPressed(ebiten.KeyEnter) {
-		// w, h := ebitenImage.Bounds().Dx(), ebitenImage.Bounds().Dy()
-		// x, y := rand.IntN(screenWidth-w), rand.IntN(screenHeight-h)
-		vx, vy := 1, 1
-		a := rand.IntN(maxAngle)
-		// CreateSprite(cardImage,
-		card := graphics.Sprite{
-			Image:       cardImage,
-			ImageWidth:  int(float64(cardImage.Bounds().Dx()) * .25),
-			ImageHeight: int(float64(cardImage.Bounds().Dy()) * .25),
-			ImageScale:  .25,
-			X:           20,
-			Y:           20,
-			Vx:          vx,
-			Vy:          vy,
-			Angle:       a,
-		}
-		g.sprites = append(g.sprites, &card)
+		// println(g.hand.Cards[0])
+		// card := CreateCard(Spades, Ace, .25, 50, 50, 0)
+		// graphics.Sprite{
+		// 	Image:       cardImage,
+		// 	ImageWidth:  int(float64(cardImage.Bounds().Dx()) * .25),
+		// 	ImageHeight: int(float64(cardImage.Bounds().Dy()) * .25),
+		// 	ImageScale:  .25,
+		// 	X:           20,
+		// 	Y:           20,
+		// 	Vx:          vx,
+		// 	Vy:          vy,
+		// 	Angle:       a,
+		// }
+		// g.cards = append(g.cards, card)
 	}
 
-	for _, sprite := range g.sprites {
-		sprite.Update()
-	}
+	// for _, card := range g.cards {
+	// 	card.Update()
+	// }
 
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	screen.Fill(color.RGBA{161, 191, 123, 1})
+
 	// Draw each sprite.
 	// DrawImage can be called many many times, but in the implementation,
 	// the actual draw call to GPU is very few since these calls satisfy
@@ -123,16 +131,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// For more detail, see:
 	// https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2#Image.DrawImage
 	// w, h := ebitenImage.Bounds().Dx(), ebitenImage.Bounds().Dy()
-	for i := range g.sprites {
-		op := ebiten.DrawImageOptions{}
-		op.ColorScale.ScaleAlpha(0.5)
-		g.sprites[i].Draw(screen, &op)
+	// for i := range g.cards {
+	op := ebiten.DrawImageOptions{}
+	// op.ColorScale.ScaleAlpha(0.25)
+	// 	g.cards[i].Sprite.Draw(screen, &op)
+	// }
+
+	g.hand.Draw(screen, op)
+	g.drawPile.Draw(screen, op)
+
+	for _, hand := range g.oppHands {
+		hand.Draw(screen, op)
 	}
-	msg := fmt.Sprintf(`TPS: %0.2f
-	FPS: %0.2f
-	Num of sprites: %d
-	Press <- or -> to change the number of sprites`, ebiten.ActualTPS(), ebiten.ActualFPS(), len(g.sprites))
-	ebitenutil.DebugPrint(screen, msg)
+	// msg := fmt.Sprintf(`TPS: %0.2f
+	// FPS: %0.2f
+	// Num of sprites: %d
+	// Press <- or -> to change the number of sprites`, ebiten.ActualTPS(), ebiten.ActualFPS(), len(g.hand.Draw))
+	// ebitenutil.DebugPrint(screen, msg)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -140,7 +155,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	ebiten.SetWindowSize(screenWidth*2, screenHeight*2)
+	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Sprites (Ebitengine Demo)")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	if err := ebiten.RunGame(&Game{}); err != nil {

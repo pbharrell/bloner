@@ -3,12 +3,12 @@ package graphics
 import (
 	"bytes"
 	"image"
+	"image/color"
 	"log"
 	"math"
-	"math/rand/v2"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 )
 
 const (
@@ -17,14 +17,16 @@ const (
 
 type Sprite struct {
 	Image       *ebiten.Image
+	AlphaImage  *image.Alpha
 	ImageWidth  int
 	ImageHeight int
 	ImageScale  float64
 	X           int
 	Y           int
+	Angle       int
 	Vx          int
 	Vy          int
-	Angle       int
+	Vangle      int
 }
 
 func LoadImage(i *[]byte) *ebiten.Image {
@@ -45,41 +47,47 @@ func LoadImage(i *[]byte) *ebiten.Image {
 	return ei
 }
 
-func CreateSprite(image *ebiten.Image, scale float64, x int, y int, vx int, vy int, angle int) *Sprite {
+func CreateSprite(image *ebiten.Image, alphaImage *image.Alpha, scale float64, x int, y int, angle int, vx int, vy int, vangle int) *Sprite {
 	rawW, rawH := image.Bounds().Dx(), image.Bounds().Dy()
 	scaledW, scaledH := int(float64(rawW)*scale), int(float64(rawH)*scale)
 
 	return &Sprite{
 		Image:       image,
+		AlphaImage:  alphaImage,
 		ImageWidth:  scaledW,
 		ImageHeight: scaledH,
 		ImageScale:  scale,
 		X:           x,
 		Y:           y,
+		Angle:       angle,
 		Vx:          vx,
 		Vy:          vy,
-		Angle:       angle,
+		Vangle:      vangle,
 	}
 }
 
-func DefaultSprite() Sprite {
-	ebitenImage := LoadImage(&images.Ebiten_png)
-	w, h := ebitenImage.Bounds().Dx(), ebitenImage.Bounds().Dy()
-	x, y := rand.IntN(320-w), rand.IntN(240-h)
-	vx, vy := 1, 1
-	a := rand.IntN(maxAngle)
-
-	return Sprite{
-		Image:       ebitenImage,
-		ImageWidth:  w,
-		ImageHeight: h,
-		ImageScale:  1,
-		X:           x,
-		Y:           y,
-		Vx:          vx,
-		Vy:          vy,
-		Angle:       a,
+func CreateSpriteFromFile(imageFile string, scale float64, x int, y int, angle int, vx int, vy int, vangle int) *Sprite {
+	reader, err := os.Open(imageFile)
+	if err != nil {
+		log.Fatal(err)
 	}
+	defer reader.Close()
+
+	img, _, err := image.Decode(reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+	spriteImage := ebiten.NewImageFromImage(img)
+
+	b := img.Bounds()
+	spriteAlphaImage := image.NewAlpha(b)
+	for j := b.Min.Y; j < b.Max.Y; j++ {
+		for i := b.Min.X; i < b.Max.X; i++ {
+			spriteAlphaImage.Set(i, j, img.At(i, j))
+		}
+	}
+
+	return CreateSprite(spriteImage, spriteAlphaImage, scale, x, y, angle, vx, vy, vangle)
 }
 
 func (s *Sprite) Update() {
@@ -99,22 +107,28 @@ func (s *Sprite) Update() {
 		s.Y = 2*my - s.Y
 		s.Vy = -s.Vy
 	}
-	s.Angle++
+	s.Angle += s.Vangle
 	if s.Angle == 360 {
 		s.Angle = 0
 	}
 }
 
-func (s *Sprite) Draw(screen *ebiten.Image, op *ebiten.DrawImageOptions) {
+func (s *Sprite) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 	w, h := s.ImageWidth, s.ImageHeight
 	op.GeoM.Scale(s.ImageScale, s.ImageScale)
 	op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
 	op.GeoM.Rotate(2 * math.Pi * float64(s.Angle) / maxAngle)
 	op.GeoM.Translate(float64(w)/2, float64(h)/2)
 	op.GeoM.Translate(float64(s.X), float64(s.Y))
-	screen.DrawImage(s.Image, op)
+	screen.DrawImage(s.Image, &op)
 }
 
-type Card struct {
-	Sprite
+func (s *Sprite) In(x, y int) bool {
+	// Check the actual color (alpha) value at the specified position
+	// so that the result of In becomes natural to users.
+	//
+	// Use alphaImage (*image.Alpha) instead of image (*ebiten.Image) here.
+	// It is because (*ebiten.Image).At is very slow as this reads pixels from GPU,
+	// and should be avoided whenever possible.
+	return s.AlphaImage.At(int(float64(x-s.X)/s.ImageScale), int(float64(y-s.Y)/s.ImageScale)).(color.Alpha).A > 0
 }
