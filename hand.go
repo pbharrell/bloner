@@ -23,6 +23,7 @@ type Hand struct {
 	SideLen         int
 	fullPercentSpan int
 	perpAxisPos     int
+	tricksWon       int
 }
 
 func CreateHand(handSize int, playPos PlayPos, scale float64, drawPile *DrawPile) *Hand {

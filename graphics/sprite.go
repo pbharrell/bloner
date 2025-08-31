@@ -30,6 +30,36 @@ type Sprite struct {
 	Visible     bool
 }
 
+func LoadImageFromFile(path string) (*ebiten.Image, *image.Alpha) {
+	var (
+		fileImage *ebiten.Image
+		fileAlpha *image.Alpha
+		err       error
+	)
+
+	reader, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer reader.Close()
+
+	img, _, err := image.Decode(reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileImage = ebiten.NewImageFromImage(img)
+
+	b := img.Bounds()
+	fileAlpha = image.NewAlpha(b)
+	for j := b.Min.Y; j < b.Max.Y; j++ {
+		for i := b.Min.X; i < b.Max.X; i++ {
+			fileAlpha.Set(i, j, img.At(i, j))
+		}
+	}
+
+	return fileImage, fileAlpha
+}
+
 func LoadImage(i *[]byte) *ebiten.Image {
 	// Decode an image from the image file's byte slice.
 	img, _, err := image.Decode(bytes.NewReader(*i))

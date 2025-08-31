@@ -2,8 +2,6 @@ package main
 
 import (
 	"image"
-	"log"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/pbharrell/bloner/graphics"
@@ -78,32 +76,7 @@ func initCardImages() {
 
 		for j := range cardAlphaImages[i] {
 			// Read the file into a byte array
-			var (
-				cardImage      *ebiten.Image
-				cardAlphaImage *image.Alpha
-				err            error
-			)
-
-			reader, err := os.Open("./assets/ace_of_spades.png")
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer reader.Close()
-
-			img, _, err := image.Decode(reader)
-			if err != nil {
-				log.Fatal(err)
-			}
-			cardImage = ebiten.NewImageFromImage(img)
-
-			b := img.Bounds()
-			cardAlphaImage = image.NewAlpha(b)
-			for j := b.Min.Y; j < b.Max.Y; j++ {
-				for i := b.Min.X; i < b.Max.X; i++ {
-					cardAlphaImage.Set(i, j, img.At(i, j))
-				}
-			}
-
+			cardImage, cardAlphaImage := graphics.LoadImageFromFile("./assets/ace_of_spades.png")
 			cardImages[i][j] = cardImage
 			cardAlphaImages[i][j] = cardAlphaImage
 		}
@@ -116,7 +89,6 @@ func CreateCard(suit Suit, number Number, scale float64, x int, y int, angle int
 	}
 
 	return &Card{
-		// Sprite: *graphics.CreateSpriteFromFile("./assets/ace_of_spades.png", .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0),
 		Sprite: *graphics.CreateSprite(cardImages[suit][number], cardAlphaImages[suit][number], scale, x, y, angle, 0, 0, 0),
 		Suit:   suit,
 		Number: number,

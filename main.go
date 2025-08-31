@@ -1,24 +1,47 @@
 package main
 
 import (
+	"image"
 	"image/color"
 	_ "image/png"
 	"log"
+
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/pbharrell/bloner/graphics"
-	"slices"
 )
 
 var (
+	overlayImage *ebiten.Image
+
+	buttonConfirmImage        *ebiten.Image
+	buttonConfirmAlpha        *image.Alpha
+	buttonPressedConfirmImage *ebiten.Image
+	buttonPressedConfirmAlpha *image.Alpha
+
+	buttonCancelImage        *ebiten.Image
+	buttonCancelAlpha        *image.Alpha
+	buttonPressedCancelImage *ebiten.Image
+	buttonPressedCancelAlpha *image.Alpha
+
 	ebitenImage *ebiten.Image
 	cardImage   *ebiten.Image
 )
 
 func init() {
+	overlayImage = ebiten.NewImage(3, 3)
+	overlayImage.Fill(color.RGBA{0, 0, 0, 200})
+
+	buttonConfirmImage, buttonConfirmAlpha = graphics.LoadImageFromFile("./assets/confirm_button.png")
+	buttonPressedConfirmImage, buttonPressedConfirmAlpha = graphics.LoadImageFromFile("./assets/confirm_button_pressed.png")
+
+	buttonCancelImage, buttonCancelAlpha = graphics.LoadImageFromFile("./assets/cancel_button.png")
+	buttonPressedCancelImage, buttonPressedCancelAlpha = graphics.LoadImageFromFile("./assets/cancel_button_pressed.png")
+
 	ebitenImage = graphics.LoadImage(&images.Ebiten_png)
 
 	// Read the file into a byte array
@@ -37,17 +60,74 @@ const (
 	maxAngle     = 360
 )
 
+type player uint8
+
+const (
+	Main player = iota
+	LeftOpp
+	TopOpp
+	RightOpp
+)
+
 type Game struct {
-	inited   bool
-	touchIDs []ebiten.TouchID
-	hand     *Hand
-	oppHands [3]*Hand
-	drawPile DrawPile
-	trick    Trick
+	inited        bool
+	trumpSuit     *Suit
+	activePlayer  player
+	touchIDs      []ebiten.TouchID
+	buttonConfirm Button
+	buttonCancel  Button
+	overlay       graphics.Shape
+	hand          *Hand
+	oppHands      [3]*Hand
+	drawPile      DrawPile
+	trick         Trick
 }
 
-func (g *Game) getOppHand(pos PlayPos) *Hand {
-	return g.oppHands[pos-1]
+func (g *Game) initOverlay() {
+	var vertices []ebiten.Vertex
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   0,
+		DstY:   0,
+		SrcX:   float32(0),
+		SrcY:   float32(0),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   screenWidth,
+		DstY:   0,
+		SrcX:   float32(1),
+		SrcY:   float32(0),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   screenWidth,
+		DstY:   screenHeight,
+		SrcX:   float32(1),
+		SrcY:   float32(1),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   0,
+		DstY:   screenHeight,
+		SrcX:   float32(0),
+		SrcY:   float32(1),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+
+	indices := graphics.GenIndices(len(vertices))
+	g.overlay = *graphics.CreateShape(overlayImage, vertices, indices, 0, 0, 0, 0, 0, 0)
 }
 
 func (g *Game) init() {
@@ -68,6 +148,20 @@ func (g *Game) init() {
 	g.trick.Pile = append(g.trick.Pile, g.drawPile.drawCard(.35, 0, 0, 0))
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
+
+	g.activePlayer = LeftOpp
+
+	g.buttonConfirm = *CreateButton(buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
+	confirmWidth := g.buttonConfirm.sprite.ImageWidth
+	confirmX := screenWidth/2 - confirmWidth/2 + 80
+	g.buttonConfirm.SetLoc(confirmX, g.buttonConfirm.sprite.Y)
+
+	g.buttonCancel = *CreateButton(buttonCancelImage, buttonCancelAlpha, buttonPressedCancelImage, buttonPressedCancelAlpha, 4, 0, screenHeight/2+80, 0)
+	cancelWidth := g.buttonCancel.sprite.ImageWidth
+	cancelX := screenWidth/2 - cancelWidth/2 - 80
+	g.buttonCancel.SetLoc(cancelX, g.buttonCancel.sprite.Y)
+
+	g.initOverlay()
 }
 
 func (g *Game) Update() error {
@@ -75,48 +169,39 @@ func (g *Game) Update() error {
 		g.init()
 	}
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if g.trumpSuit == nil {
 		x, y := ebiten.CursorPosition()
+		mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
 
-		// Look through sprites in reverse order since a card on the right is on top
-		for i := len(g.hand.Cards) - 1; i >= 0; i-- {
-			card := g.hand.Cards[i]
-			if card.Sprite.In(x, y) {
-				g.trick.playCard(g.hand.Cards[i])
-				g.hand.Cards = slices.Delete(g.hand.Cards, i, i+1)
-				g.hand.ArrangeHand()
-				break
+		g.buttonConfirm.Update(x, y, mouseButtonPressed)
+		g.buttonCancel.Update(x, y, mouseButtonPressed)
+
+	} else {
+		x, y := ebiten.CursorPosition()
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+
+			// Look through sprites in reverse order since a card on the right is on top
+			for i := len(g.hand.Cards) - 1; i >= 0; i-- {
+				card := g.hand.Cards[i]
+				if card.Sprite.In(x, y) {
+					g.trick.playCard(g.hand.Cards[i])
+					g.hand.Cards = slices.Delete(g.hand.Cards, i, i+1)
+					g.hand.ArrangeHand()
+					break
+				}
 			}
-		}
 
-		if g.drawPile.Sprite.In(x, y) && len(g.hand.Cards) < 5 {
-			card := g.drawPile.drawCard(.35, 0, 0, 0)
-			if card != nil {
-				g.hand.Cards = append(g.hand.Cards, card)
-				g.hand.ArrangeHand()
+			if g.drawPile.Sprite.In(x, y) && len(g.hand.Cards) < 5 {
+				card := g.drawPile.drawCard(.35, 0, 0, 0)
+				if card != nil {
+					g.hand.Cards = append(g.hand.Cards, card)
+					g.hand.ArrangeHand()
+				}
 			}
 		}
 	}
 
 	g.drawPile.Update()
-
-	// Add a card to the mix.
-	if ebiten.IsKeyPressed(ebiten.KeyEnter) {
-		// println(g.hand.Cards[0])
-		// card := CreateCard(Spades, Ace, .25, 50, 50, 0)
-		// graphics.Sprite{
-		// 	Image:       cardImage,
-		// 	ImageWidth:  int(float64(cardImage.Bounds().Dx()) * .25),
-		// 	ImageHeight: int(float64(cardImage.Bounds().Dy()) * .25),
-		// 	ImageScale:  .25,
-		// 	X:           20,
-		// 	Y:           20,
-		// 	Vx:          vx,
-		// 	Vy:          vy,
-		// 	Angle:       a,
-		// }
-		// g.cards = append(g.cards, card)
-	}
 
 	return nil
 }
@@ -132,18 +217,28 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2#Image.DrawImage
 	op := ebiten.DrawImageOptions{}
 
+	if g.trumpSuit != nil {
+		g.hand.Draw(screen, op)
+	}
+
 	g.drawPile.Draw(screen, op)
 	g.trick.Draw(screen, op)
-	g.hand.Draw(screen, op)
 
 	for _, hand := range g.oppHands {
 		hand.Draw(screen, op)
 	}
-	// msg := fmt.Sprintf(`TPS: %0.2f
-	// FPS: %0.2f
-	// Num of sprites: %d
-	// Press <- or -> to change the number of sprites`, ebiten.ActualTPS(), ebiten.ActualFPS(), len(g.hand.Draw))
-	// ebitenutil.DebugPrint(screen, msg)
+
+	// TODO: AND ACCOUNT FOR DROPPING OVERLAY WHEN NOT YOUR TURN
+	if g.trumpSuit == nil {
+		g.overlay.Draw(screen)
+
+		// **Everything on top of fade overlay start here**
+
+		g.buttonConfirm.Draw(screen, op)
+		g.buttonCancel.Draw(screen, op)
+		g.hand.Draw(screen, op)
+	}
+
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -152,7 +247,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("Sprites (Ebitengine Demo)")
+	ebiten.SetWindowTitle("bloner")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
