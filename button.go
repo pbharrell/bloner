@@ -7,15 +7,21 @@ import (
 	"github.com/pbharrell/bloner/graphics"
 )
 
+type ButtonPressCallback func(g *Game)
+
 type Button struct {
+	game          *Game
+	pressCallback ButtonPressCallback
 	sprite        graphics.Sprite
 	pressedSprite graphics.Sprite
 	isHovered     bool
 	isPressed     bool
 }
 
-func CreateButton(image *ebiten.Image, alphaImage *image.Alpha, pressedImage *ebiten.Image, pressedAlphaImage *image.Alpha, scale float64, x int, y int, angle int) *Button {
+func CreateButton(game *Game, pressCallback ButtonPressCallback, image *ebiten.Image, alphaImage *image.Alpha, pressedImage *ebiten.Image, pressedAlphaImage *image.Alpha, scale float64, x int, y int, angle int) *Button {
 	return &Button{
+		game:          game,
+		pressCallback: pressCallback,
 		sprite:        *graphics.CreateSprite(image, alphaImage, scale, x, y, angle, 0, 0, 0),
 		pressedSprite: *graphics.CreateSprite(pressedImage, pressedAlphaImage, scale, x, y, angle, 0, 0, 0),
 		isHovered:     false,
@@ -37,6 +43,7 @@ func (b *Button) Update(x int, y int, isMouseClick bool) {
 	// Check if button is clicked
 	if b.isHovered && isMouseClick {
 		b.isPressed = true
+		b.pressCallback(b.game)
 		println("Button clicked!")
 	} else if b.isPressed {
 		b.isPressed = false

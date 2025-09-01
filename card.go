@@ -57,14 +57,16 @@ var (
 )
 
 type Card struct {
-	Sprite graphics.Sprite
-	Suit   Suit
-	Number Number
+	Sprite      graphics.Sprite
+	Suit        Suit
+	Number      Number
+	BlankSideUp bool
 }
 
 var (
 	cardImages      [][]*ebiten.Image // Think of each row as the suit, each col as the num.
 	cardAlphaImages [][]*image.Alpha
+	// TODO: Blank side image
 )
 
 func initCardImages() {
@@ -89,13 +91,15 @@ func CreateCard(suit Suit, number Number, scale float64, x int, y int, angle int
 	}
 
 	return &Card{
-		Sprite: *graphics.CreateSprite(cardImages[suit][number], cardAlphaImages[suit][number], scale, x, y, angle, 0, 0, 0),
-		Suit:   suit,
-		Number: number,
+		Sprite:      *graphics.CreateSprite(cardImages[suit][number], cardAlphaImages[suit][number], scale, x, y, angle, 0, 0, 0),
+		Suit:        suit,
+		Number:      number,
+		BlankSideUp: false,
 	}
 }
 
 func (c *Card) Update() {
+	// TODO: Change sprite images to blank if `BlankSideUp` true
 	c.Sprite.Update()
 }
 

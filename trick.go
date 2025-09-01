@@ -14,6 +14,9 @@ type Trick struct {
 
 func (t *Trick) playCard(card *Card) {
 	t.Pile = append(t.Pile, card)
+	t.Sprite = t.Pile[len(t.Pile)-1].Sprite
+	t.Sprite.X = t.X
+	t.Sprite.Y = t.Y
 }
 
 func (t *Trick) clear() {
@@ -25,8 +28,5 @@ func (t *Trick) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 		return
 	}
 
-	t.Sprite = t.Pile[len(t.Pile)-1].Sprite
-	t.Sprite.X = t.X
-	t.Sprite.Y = t.Y
 	t.Sprite.Draw(screen, op)
 }

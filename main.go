@@ -1,17 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	_ "image/png"
 	"log"
-
 	"slices"
 
+	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
+
 	"github.com/pbharrell/bloner/graphics"
 )
 
@@ -71,6 +74,7 @@ const (
 
 type Game struct {
 	inited        bool
+	fontSource    *text.GoTextFaceSource
 	trumpSuit     *Suit
 	activePlayer  player
 	touchIDs      []ebiten.TouchID
@@ -135,6 +139,13 @@ func (g *Game) init() {
 		g.inited = true
 	}()
 
+	fontSource, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	g.fontSource = fontSource
+
 	g.drawPile.Sprite = *graphics.CreateSpriteFromFile("./assets/ace_of_spades.png", .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
 	g.drawPile.Sprite.X = screenWidth/2 - g.drawPile.Sprite.ImageWidth - 20
 	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
@@ -145,18 +156,19 @@ func (g *Game) init() {
 	g.oppHands[1] = CreateHand(5, Top, .35, &g.drawPile)
 	g.oppHands[2] = CreateHand(5, Right, .35, &g.drawPile)
 
-	g.trick.Pile = append(g.trick.Pile, g.drawPile.drawCard(.35, 0, 0, 0))
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
+	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0))
 
-	g.activePlayer = LeftOpp
+	// g.activePlayer = LeftOpp
+	g.activePlayer = Main
 
-	g.buttonConfirm = *CreateButton(buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
 	confirmX := screenWidth/2 - confirmWidth/2 + 80
 	g.buttonConfirm.SetLoc(confirmX, g.buttonConfirm.sprite.Y)
 
-	g.buttonCancel = *CreateButton(buttonCancelImage, buttonCancelAlpha, buttonPressedCancelImage, buttonPressedCancelAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonCancel = *CreateButton(g, cancelTrump, buttonCancelImage, buttonCancelAlpha, buttonPressedCancelImage, buttonPressedCancelAlpha, 4, 0, screenHeight/2+80, 0)
 	cancelWidth := g.buttonCancel.sprite.ImageWidth
 	cancelX := screenWidth/2 - cancelWidth/2 - 80
 	g.buttonCancel.SetLoc(cancelX, g.buttonCancel.sprite.Y)
@@ -164,12 +176,37 @@ func (g *Game) init() {
 	g.initOverlay()
 }
 
+func (g *Game) EndTurn() {
+	g.activePlayer = (g.activePlayer + 1) % 4
+}
+
+func (g *Game) IsPickingTrump() bool {
+	return g.activePlayer == Main && g.trumpSuit == nil
+}
+
 func (g *Game) Update() error {
 	if !g.inited {
 		g.init()
 	}
 
-	if g.trumpSuit == nil {
+	if len(g.hand.Cards) > 5 {
+		x, y := ebiten.CursorPosition()
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			// Look through sprites in reverse order since a card on the right is on top
+			for i := len(g.hand.Cards) - 1; i >= 0; i-- {
+				card := g.hand.Cards[i]
+				if card.Sprite.In(x, y) {
+					// TODO: Update sprite here to be blank side
+					discarded := g.hand.Cards[i]
+					g.drawPile.discard(discarded)
+					g.hand.Cards = slices.Delete(g.hand.Cards, i, i+1)
+					g.hand.ArrangeHand()
+					break
+				}
+			}
+		}
+
+	} else if g.IsPickingTrump() {
 		x, y := ebiten.CursorPosition()
 		mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
 
@@ -217,7 +254,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2#Image.DrawImage
 	op := ebiten.DrawImageOptions{}
 
-	if g.trumpSuit != nil {
+	if !g.IsPickingTrump() {
 		g.hand.Draw(screen, op)
 	}
 
@@ -228,8 +265,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		hand.Draw(screen, op)
 	}
 
-	// TODO: AND ACCOUNT FOR DROPPING OVERLAY WHEN NOT YOUR TURN
-	if g.trumpSuit == nil {
+	if len(g.hand.Cards) > 5 {
+		g.overlay.Draw(screen)
+
+		var (
+			discardText = "Click a card to discard"
+			txtOp       = text.DrawOptions{}
+		)
+
+		// Create font faces with different sizes as needed
+		fontFace := &text.GoTextFace{
+			Source: g.fontSource,
+			Size:   24,
+		}
+
+		txtW, txtH := text.Measure(discardText, fontFace, 0)
+		txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
+		text.Draw(screen, discardText, fontFace, &txtOp)
+		g.hand.Draw(screen, op)
+
+	} else if g.activePlayer == Main && g.trumpSuit == nil {
 		g.overlay.Draw(screen)
 
 		// **Everything on top of fade overlay start here**
@@ -238,6 +293,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.buttonCancel.Draw(screen, op)
 		g.hand.Draw(screen, op)
 	}
+
+	// numInTrick := ""
+	// for _, card := range g.drawPile.Pile {
+	// 	numInTrick = fmt.Sprintf("%vSuit: %v Num: %v\n", numInTrick, card/6, card%6)
+	// }
+	// ebitenutil.DebugPrint(screen, numInTrick)
 
 }
 

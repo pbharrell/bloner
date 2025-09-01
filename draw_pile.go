@@ -25,8 +25,8 @@ func (p *DrawPile) shuffleDrawPile() {
 	}
 }
 
-func (p *DrawPile) setDrawPile(pile []int) {
-	p.Pile = pile
+func (p *DrawPile) discard(card *Card) {
+	p.Pile = append(p.Pile, int(card.Suit)*int(card.Number))
 }
 
 func (p *DrawPile) drawCard(scale float64, x int, y int, angle int) *Card {
