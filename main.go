@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/gob"
 	"image"
 	"image/color"
 	_ "image/png"
@@ -14,6 +15,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+
+	"github.com/pbharrell/bloner/state"
 
 	"github.com/pbharrell/bloner/graphics"
 )
@@ -310,6 +313,9 @@ func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("bloner")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+
+	gob.Register(state.GameState{})
+
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
 	}
