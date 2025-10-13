@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/png"
 	"log"
+	"net"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
@@ -16,6 +18,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 
+	"github.com/pbharrell/bloner/connection"
 	"github.com/pbharrell/bloner/state"
 
 	"github.com/pbharrell/bloner/graphics"
@@ -77,6 +80,7 @@ const (
 
 type Game struct {
 	inited        bool
+	server        connection.Server
 	fontSource    *text.GoTextFaceSource
 	trumpSuit     *Suit
 	activePlayer  player
