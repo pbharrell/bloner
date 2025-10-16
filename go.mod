@@ -19,6 +19,7 @@ require (
 	github.com/ebitengine/purego v0.8.0 // indirect
 	github.com/hajimehoshi/ebiten v1.12.12
 	github.com/jezek/xgb v1.1.1 // indirect
+	github.com/pbharrell/bloner-server v0.0.0-20251016015113-f25da94e189f
 	github.com/pbharrell/bloner/state v0.0.0-20250921025532-5c86094fca9e
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect

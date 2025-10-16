@@ -3,12 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"image"
 	"image/color"
 	_ "image/png"
 	"log"
-	"net"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
