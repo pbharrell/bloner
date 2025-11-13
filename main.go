@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/gob"
+	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/png"
 	"log"
+	"net"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
@@ -16,8 +18,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 
-	"github.com/pbharrell/bloner/connection"
-	"github.com/pbharrell/bloner/state"
+	"github.com/pbharrell/bloner-server/connection"
 
 	"github.com/pbharrell/bloner/graphics"
 )
@@ -67,27 +68,26 @@ const (
 	maxAngle     = 360
 )
 
-type player uint8
+type state uint8
 
 const (
-	Main player = iota
-	LeftOpp
-	TopOpp
-	RightOpp
+	LobbyWait state = iota
+	GameStart
 )
 
 type Game struct {
 	inited        bool
 	server        connection.Server
+	state         state
 	fontSource    *text.GoTextFaceSource
 	trumpSuit     *Suit
-	activePlayer  player
+	activePlayer  int
 	touchIDs      []ebiten.TouchID
 	buttonConfirm Button
 	buttonCancel  Button
 	overlay       graphics.Shape
-	hand          *Hand
-	oppHands      [3]*Hand
+	player        *Player
+	oppPlayers    [3]*Player
 	drawPile      DrawPile
 	trick         Trick
 }
@@ -156,17 +156,17 @@ func (g *Game) init() {
 	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.drawPile.shuffleDrawPile()
 
-	g.hand = CreateHand(5, Bottom, .35, &g.drawPile)
-	g.oppHands[0] = CreateHand(5, Left, .35, &g.drawPile)
-	g.oppHands[1] = CreateHand(5, Top, .35, &g.drawPile)
-	g.oppHands[2] = CreateHand(5, Right, .35, &g.drawPile)
+	g.player = CreatePlayer(5, Bottom, .35, &g.drawPile)
+	g.oppPlayers[0] = CreatePlayer(5, Left, .35, &g.drawPile)
+	g.oppPlayers[1] = CreatePlayer(5, Top, .35, &g.drawPile)
+	g.oppPlayers[2] = CreatePlayer(5, Right, .35, &g.drawPile)
 
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0))
 
 	// g.activePlayer = LeftOpp
-	g.activePlayer = Main
+	g.activePlayer = 0 // FIXME:
 
 	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
@@ -179,6 +179,19 @@ func (g *Game) init() {
 	g.buttonCancel.SetLoc(cancelX, g.buttonCancel.sprite.Y)
 
 	g.initOverlay()
+
+	conn, err := net.Dial("tcp", "localhost:9000")
+	if err != nil {
+		fmt.Printf("Error connecting to server: `%v`\nCan debug in offline mode, but don't expect to join a game anytime soon.", err)
+		return
+	}
+
+	g.server = connection.Server{
+		Conn: conn,
+		Data: make(chan connection.Message),
+	}
+
+	go g.server.Listen()
 }
 
 func (g *Game) EndTurn() {
@@ -186,7 +199,156 @@ func (g *Game) EndTurn() {
 }
 
 func (g *Game) IsPickingTrump() bool {
-	return g.activePlayer == Main && g.trumpSuit == nil
+	return g.activePlayer == 0 && g.trumpSuit == nil
+}
+
+func (g *Game) EncodeGameState() connection.GameState {
+	intTrumpSuit := -1
+	if g.trumpSuit != nil {
+		intTrumpSuit = int(*g.trumpSuit)
+	}
+
+	encDrawPile := make([]connection.Card, len(g.drawPile.Pile))
+	for i, card := range g.drawPile.Pile {
+		encDrawPile[i] = connection.Card{
+			Suit:   uint8(card / 6),
+			Number: uint8(card % 6),
+		}
+	}
+
+	encPlayPile := make([]connection.Card, len(g.trick.Pile))
+	for i, card := range g.trick.Pile {
+		encPlayPile[i] = connection.Card{
+			Suit:   uint8(card.Suit),
+			Number: uint8(card.Number),
+		}
+	}
+
+	teamState := [2]connection.TeamState{}
+
+	var players [4]*Player
+	if len(players) != len(teamState)+len(teamState[0].PlayerState) {
+		println("Unexpected number of players encountered!")
+		return connection.GameState{}
+	}
+
+	players[0] = g.player
+	for i := range g.oppPlayers {
+		players[1+i] = g.oppPlayers[i]
+	}
+
+	for i := range teamState {
+		for j := range teamState[i].PlayerState {
+			// FIXME: Populate tricks won
+
+			playerState := &teamState[i].PlayerState[j]
+			player := players[i+j]
+
+			playerState.PlayerId = player.Id
+			playerState.Cards = make([]connection.Card, len(player.Cards))
+			for i := range playerState.Cards {
+				playerState.Cards[i] = GetEncodedCard(player.Cards[i])
+			}
+		}
+	}
+
+	return connection.GameState{
+		PlayerId:     g.player.Id,
+		ActivePlayer: g.activePlayer,
+		TrumpSuit:    intTrumpSuit,
+		DrawPile:     encDrawPile,
+		PlayPile:     encPlayPile,
+		TeamState:    teamState,
+	}
+}
+
+func (g *Game) DecodeGameState(state connection.GameState) {
+	g.activePlayer = state.ActivePlayer
+
+	if state.TrumpSuit < 0 {
+		g.trumpSuit = nil
+	} else {
+		*g.trumpSuit = Suit(state.TrumpSuit)
+	}
+
+	g.drawPile.Pile = make([]int, len(state.DrawPile))
+	for i, card := range state.DrawPile {
+		g.drawPile.Pile[i] = int(card.Suit)*6 + int(card.Number)
+	}
+
+	g.trick.Pile = make([]*Card, len(state.PlayPile))
+	for i, card := range state.PlayPile {
+		g.trick.Pile[i] = CreateCard(Suit(card.Suit), Number(card.Number), .35, screenWidth/2+20, 0, 0)
+	}
+
+	// FIXME: DECODE PLAYERS
+}
+
+func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
+	println("Player with id:", data.PlayerId)
+	println("Lobby with id:", data.LobbyId)
+}
+
+func (g *Game) HandleStateRequestMessage() {
+	gameState := g.EncodeGameState()
+	fmt.Printf("%v", gameState)
+	g.server.Send(connection.Message{
+		Type: "state_res",
+		Data: gameState,
+	})
+}
+
+func (g *Game) HandleStateResponseMessage(data connection.GameState) {
+	gameState := g.EncodeGameState()
+	fmt.Printf("%v", gameState)
+	g.server.Send(connection.Message{
+		Type: "state_res",
+		Data: gameState,
+	})
+}
+
+func (g *Game) HandleMessage(msg connection.Message, debug bool) {
+	// Marshal Data back into JSON bytes
+	raw, err := json.Marshal(msg.Data)
+	if err != nil {
+		println("marshal error:", err)
+		return
+	}
+
+	switch msg.Type {
+	case "lobby_assign":
+		var lobbyAssign connection.LobbyAssign
+		if err := json.Unmarshal(raw, &lobbyAssign); err != nil {
+			println("LobbyAssign unmarshal error:", err)
+			return
+		}
+
+		g.HandleLobbyAssignMessage(lobbyAssign)
+		break
+	case "state_req":
+		g.HandleStateRequestMessage()
+		break
+
+	case "state_res":
+		var lobbyAssign connection.LobbyAssign
+		if err := json.Unmarshal(raw, &lobbyAssign); err != nil {
+			println("LobbyAssign unmarshal error:", err)
+			return
+		}
+
+		g.HandleLobbyAssignMessage(lobbyAssign)
+		break
+
+	default:
+		println("Message with unexpected type encountered:", msg.Type)
+		return
+	}
+
+	if debug {
+		println("Type:", msg.Type)
+		println("Data:", msg.Data)
+	}
+
 }
 
 func (g *Game) Update() error {
@@ -194,18 +356,26 @@ func (g *Game) Update() error {
 		g.init()
 	}
 
-	if len(g.hand.Cards) > 5 {
+	select {
+	case msg := <-g.server.Data:
+		g.HandleMessage(msg, true)
+		break
+	default:
+		break
+	}
+
+	if len(g.player.Cards) > 5 {
 		x, y := ebiten.CursorPosition()
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(g.hand.Cards) - 1; i >= 0; i-- {
-				card := g.hand.Cards[i]
+			for i := len(g.player.Cards) - 1; i >= 0; i-- {
+				card := g.player.Cards[i]
 				if card.Sprite.In(x, y) {
 					// TODO: Update sprite here to be blank side
-					discarded := g.hand.Cards[i]
+					discarded := g.player.Cards[i]
 					g.drawPile.discard(discarded)
-					g.hand.Cards = slices.Delete(g.hand.Cards, i, i+1)
-					g.hand.ArrangeHand()
+					g.player.Cards = slices.Delete(g.player.Cards, i, i+1)
+					g.player.ArrangeHand()
 					break
 				}
 			}
@@ -223,21 +393,21 @@ func (g *Game) Update() error {
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 
 			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(g.hand.Cards) - 1; i >= 0; i-- {
-				card := g.hand.Cards[i]
+			for i := len(g.player.Cards) - 1; i >= 0; i-- {
+				card := g.player.Cards[i]
 				if card.Sprite.In(x, y) {
-					g.trick.playCard(g.hand.Cards[i])
-					g.hand.Cards = slices.Delete(g.hand.Cards, i, i+1)
-					g.hand.ArrangeHand()
+					g.trick.playCard(g.player.Cards[i])
+					g.player.Cards = slices.Delete(g.player.Cards, i, i+1)
+					g.player.ArrangeHand()
 					break
 				}
 			}
 
-			if g.drawPile.Sprite.In(x, y) && len(g.hand.Cards) < 5 {
+			if g.drawPile.Sprite.In(x, y) && len(g.player.Cards) < 5 {
 				card := g.drawPile.drawCard(.35, 0, 0, 0)
 				if card != nil {
-					g.hand.Cards = append(g.hand.Cards, card)
-					g.hand.ArrangeHand()
+					g.player.Cards = append(g.player.Cards, card)
+					g.player.ArrangeHand()
 				}
 			}
 		}
@@ -260,17 +430,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op := ebiten.DrawImageOptions{}
 
 	if !g.IsPickingTrump() {
-		g.hand.Draw(screen, op)
+		g.player.Draw(screen, op)
 	}
 
 	g.drawPile.Draw(screen, op)
 	g.trick.Draw(screen, op)
 
-	for _, hand := range g.oppHands {
+	for _, hand := range g.oppPlayers {
 		hand.Draw(screen, op)
 	}
 
-	if len(g.hand.Cards) > 5 {
+	if len(g.player.Cards) > 5 {
 		g.overlay.Draw(screen)
 
 		var (
@@ -287,16 +457,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		txtW, txtH := text.Measure(discardText, fontFace, 0)
 		txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
 		text.Draw(screen, discardText, fontFace, &txtOp)
-		g.hand.Draw(screen, op)
+		g.player.Draw(screen, op)
 
-	} else if g.activePlayer == Main && g.trumpSuit == nil {
+	} else if g.activePlayer == 0 && g.trumpSuit == nil {
 		g.overlay.Draw(screen)
 
 		// **Everything on top of fade overlay start here**
 
 		g.buttonConfirm.Draw(screen, op)
 		g.buttonCancel.Draw(screen, op)
-		g.hand.Draw(screen, op)
+		g.player.Draw(screen, op)
 	}
 
 	// numInTrick := ""
@@ -311,12 +481,19 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight
 }
 
+func GetEncodedCard(c *Card) connection.Card {
+	return connection.Card{
+		Suit:   uint8(c.Suit),
+		Number: uint8(c.Number),
+	}
+}
+
 func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("bloner")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
-	gob.Register(state.GameState{})
+	// gob.Register(state.GameState{})
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)

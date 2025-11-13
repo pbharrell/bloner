@@ -13,8 +13,8 @@ func confirmTrump(g *Game) {
 	topCard := g.trick.Pile[len(g.trick.Pile)-1]
 	g.trick.Pile = g.trick.Pile[:len(g.trick.Pile)-1]
 	g.trumpSuit = &topCard.Suit
-	g.hand.Cards = append(g.hand.Cards, topCard)
-	g.hand.ArrangeHand()
+	g.player.Cards = append(g.player.Cards, topCard)
+	g.player.ArrangeHand()
 }
 
 func cancelTrump(g *Game) {

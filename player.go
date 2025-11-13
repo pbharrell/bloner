@@ -17,7 +17,8 @@ var (
 	maxSpan = [5]int{0, 25, 40, 50, 60}
 )
 
-type Hand struct {
+type Player struct {
+	Id              int
 	Cards           []*Card
 	PlayPos         PlayPos
 	SideLen         int
@@ -26,7 +27,7 @@ type Hand struct {
 	tricksWon       int
 }
 
-func CreateHand(handSize int, playPos PlayPos, scale float64, drawPile *DrawPile) *Hand {
+func CreatePlayer(handSize int, playPos PlayPos, scale float64, drawPile *DrawPile) *Player {
 	if handSize == 0 {
 		return nil
 	}
@@ -68,7 +69,7 @@ func CreateHand(handSize int, playPos PlayPos, scale float64, drawPile *DrawPile
 		perpAxisPos = screenWidth - cards[0].Sprite.ImageHeight - 20
 	}
 
-	hand := &Hand{
+	hand := &Player{
 		Cards:           cards,
 		PlayPos:         playPos,
 		SideLen:         sideLen,
@@ -82,19 +83,19 @@ func CreateHand(handSize int, playPos PlayPos, scale float64, drawPile *DrawPile
 	return hand
 }
 
-func (h *Hand) Update() {
+func (h *Player) Update() {
 	for i := range h.Cards {
 		h.Cards[i].Update()
 	}
 }
 
-func (h *Hand) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
+func (h *Player) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 	for i := range h.Cards {
 		h.Cards[i].Draw(screen, op)
 	}
 }
 
-func (h *Hand) ArrangeHand() {
+func (h *Player) ArrangeHand() {
 	cards := h.Cards
 	sideLen := h.SideLen
 

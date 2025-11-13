@@ -7,9 +7,9 @@ import (
 	"github.com/pbharrell/bloner-server/connection"
 )
 
-func connectToServer() connection.Server {
+func ConnectToServer() connection.Server {
 	// Connect to the server
-	conn, err := net.Dial("tcp", "localhost:8080")
+	conn, err := net.Dial("tcp", "localhost:9000")
 	if err == nil {
 		fmt.Println("Error connecting to server:", err)
 	}
