@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/pbharrell/bloner-server/connection"
 	"github.com/pbharrell/bloner/graphics"
 )
 
@@ -10,6 +11,15 @@ type Trick struct {
 	Sprite graphics.Sprite
 	X      int
 	Y      int
+}
+
+func (t *Trick) Encode() []connection.Card {
+	encTrick := make([]connection.Card, len(t.Pile))
+	for i, card := range t.Pile {
+		encTrick[i] = card.Encode()
+	}
+
+	return encTrick
 }
 
 func (t *Trick) playCard(card *Card) {

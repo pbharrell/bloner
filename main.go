@@ -68,26 +68,27 @@ const (
 	maxAngle     = 360
 )
 
-type state uint8
+type phase uint8
 
 const (
-	LobbyWait state = iota
+	LobbyWait phase = iota
 	GameStart
 )
 
 type Game struct {
 	inited        bool
+	debug         bool
 	server        connection.Server
-	state         state
+	id            int
+	phase         phase
 	fontSource    *text.GoTextFaceSource
 	trumpSuit     *Suit
+	teams         [2]Team
 	activePlayer  int
 	touchIDs      []ebiten.TouchID
 	buttonConfirm Button
 	buttonCancel  Button
 	overlay       graphics.Shape
-	player        *Player
-	oppPlayers    [3]*Player
 	drawPile      DrawPile
 	trick         Trick
 }
@@ -144,6 +145,9 @@ func (g *Game) init() {
 		g.inited = true
 	}()
 
+	// FIXME: Remove debug when appropriate
+	g.debug = true
+
 	fontSource, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
 	if err != nil {
 		log.Fatal(err)
@@ -156,10 +160,14 @@ func (g *Game) init() {
 	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.drawPile.shuffleDrawPile()
 
-	g.player = CreatePlayer(5, Bottom, .35, &g.drawPile)
-	g.oppPlayers[0] = CreatePlayer(5, Left, .35, &g.drawPile)
-	g.oppPlayers[1] = CreatePlayer(5, Top, .35, &g.drawPile)
-	g.oppPlayers[2] = CreatePlayer(5, Right, .35, &g.drawPile)
+	g.teams[uint8(Black)].teamColor = Black
+	g.teams[uint8(Red)].teamColor = Red
+	g.teams[uint8(Black)].tricksWon = 0
+	g.teams[uint8(Red)].tricksWon = 0
+	g.teams[uint8(Black)].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile)
+	g.teams[uint8(Red)].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile)
+	g.teams[uint8(Black)].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile)
+	g.teams[uint8(Red)].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile)
 
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
@@ -194,6 +202,34 @@ func (g *Game) init() {
 	go g.server.Listen()
 }
 
+func (g *Game) debugPrintln(msg string) {
+	if g.debug {
+		println(msg)
+	}
+}
+
+func (g *Game) GetClient() *Player {
+	for i := range g.teams {
+		for j := range g.teams[i].players {
+			if g.id == g.teams[i].players[j].Id {
+				return &g.teams[i].players[j]
+			}
+		}
+	}
+
+	println("ERROR: Should not be here! Called `game.GetClient()` with no client present in player list")
+	return nil
+}
+
+func DecodeCardPile(encPile []connection.Card, scale float64) []*Card {
+	pile := make([]*Card, len(encPile))
+	for i, encCard := range encPile {
+		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), scale, 0, 0, 0))
+	}
+
+	return pile
+}
+
 func (g *Game) EndTurn() {
 	g.activePlayer = (g.activePlayer + 1) % 4
 }
@@ -209,51 +245,19 @@ func (g *Game) EncodeGameState() connection.GameState {
 	}
 
 	encDrawPile := make([]connection.Card, len(g.drawPile.Pile))
-	for i, card := range g.drawPile.Pile {
-		encDrawPile[i] = connection.Card{
-			Suit:   uint8(card / 6),
-			Number: uint8(card % 6),
-		}
+	for i, cardInt := range g.drawPile.Pile {
+		encDrawPile[i] = CreateCard(Suit(cardInt/6), Number(cardInt%6), 0, 0, 0, 0).Encode()
 	}
 
-	encPlayPile := make([]connection.Card, len(g.trick.Pile))
-	for i, card := range g.trick.Pile {
-		encPlayPile[i] = connection.Card{
-			Suit:   uint8(card.Suit),
-			Number: uint8(card.Number),
-		}
-	}
+	encPlayPile := g.trick.Encode()
 
-	teamState := [2]connection.TeamState{}
-
-	var players [4]*Player
-	if len(players) != len(teamState)+len(teamState[0].PlayerState) {
-		println("Unexpected number of players encountered!")
-		return connection.GameState{}
-	}
-
-	players[0] = g.player
-	for i := range g.oppPlayers {
-		players[1+i] = g.oppPlayers[i]
-	}
-
-	for i := range teamState {
-		for j := range teamState[i].PlayerState {
-			// FIXME: Populate tricks won
-
-			playerState := &teamState[i].PlayerState[j]
-			player := players[i+j]
-
-			playerState.PlayerId = player.Id
-			playerState.Cards = make([]connection.Card, len(player.Cards))
-			for i := range playerState.Cards {
-				playerState.Cards[i] = GetEncodedCard(player.Cards[i])
-			}
-		}
+	teamState := [2]connection.TeamState{
+		g.teams[uint8(Black)].Encode(),
+		g.teams[uint8(Red)].Encode(),
 	}
 
 	return connection.GameState{
-		PlayerId:     g.player.Id,
+		PlayerId:     g.id,
 		ActivePlayer: g.activePlayer,
 		TrumpSuit:    intTrumpSuit,
 		DrawPile:     encDrawPile,
@@ -276,17 +280,17 @@ func (g *Game) DecodeGameState(state connection.GameState) {
 		g.drawPile.Pile[i] = int(card.Suit)*6 + int(card.Number)
 	}
 
-	g.trick.Pile = make([]*Card, len(state.PlayPile))
-	for i, card := range state.PlayPile {
-		g.trick.Pile[i] = CreateCard(Suit(card.Suit), Number(card.Number), .35, screenWidth/2+20, 0, 0)
-	}
+	g.trick.Pile = DecodeCardPile(state.PlayPile, g.trick.Sprite.ImageScale)
 
-	// FIXME: DECODE PLAYERS
+	g.teams[uint8(Black)].Decode(state.TeamState[uint8(Black)])
+	g.teams[uint8(Red)].Decode(state.TeamState[uint8(Red)])
 }
 
 func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
 	println("Player with id:", data.PlayerId)
 	println("Lobby with id:", data.LobbyId)
+
+	g.debugPrintln("Handled lobby assign message!")
 }
 
 func (g *Game) HandleStateRequestMessage() {
@@ -296,18 +300,15 @@ func (g *Game) HandleStateRequestMessage() {
 		Type: "state_res",
 		Data: gameState,
 	})
+
+	g.debugPrintln("Handled state request message!")
 }
 
 func (g *Game) HandleStateResponseMessage(data connection.GameState) {
-	gameState := g.EncodeGameState()
-	fmt.Printf("%v", gameState)
-	g.server.Send(connection.Message{
-		Type: "state_res",
-		Data: gameState,
-	})
+	g.DecodeGameState(data)
 }
 
-func (g *Game) HandleMessage(msg connection.Message, debug bool) {
+func (g *Game) HandleMessage(msg connection.Message) {
 	// Marshal Data back into JSON bytes
 	raw, err := json.Marshal(msg.Data)
 	if err != nil {
@@ -330,13 +331,13 @@ func (g *Game) HandleMessage(msg connection.Message, debug bool) {
 		break
 
 	case "state_res":
-		var lobbyAssign connection.LobbyAssign
-		if err := json.Unmarshal(raw, &lobbyAssign); err != nil {
+		var stateResponse connection.StateResponse
+		if err := json.Unmarshal(raw, &stateResponse); err != nil {
 			println("LobbyAssign unmarshal error:", err)
 			return
 		}
 
-		g.HandleLobbyAssignMessage(lobbyAssign)
+		g.HandleStateResponseMessage(stateResponse)
 		break
 
 	default:
@@ -344,10 +345,8 @@ func (g *Game) HandleMessage(msg connection.Message, debug bool) {
 		return
 	}
 
-	if debug {
-		println("Type:", msg.Type)
-		println("Data:", msg.Data)
-	}
+	g.debugPrintln(fmt.Sprintf("Type:", msg.Type))
+	g.debugPrintln(fmt.Sprintf("Data:", msg.Data))
 
 }
 
@@ -358,24 +357,25 @@ func (g *Game) Update() error {
 
 	select {
 	case msg := <-g.server.Data:
-		g.HandleMessage(msg, true)
+		g.HandleMessage(msg)
 		break
 	default:
 		break
 	}
 
-	if len(g.player.Cards) > 5 {
+	client := g.GetClient()
+	if len(client.Cards) > 5 {
 		x, y := ebiten.CursorPosition()
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(g.player.Cards) - 1; i >= 0; i-- {
-				card := g.player.Cards[i]
+			for i := len(client.Cards) - 1; i >= 0; i-- {
+				card := client.Cards[i]
 				if card.Sprite.In(x, y) {
 					// TODO: Update sprite here to be blank side
-					discarded := g.player.Cards[i]
+					discarded := client.Cards[i]
 					g.drawPile.discard(discarded)
-					g.player.Cards = slices.Delete(g.player.Cards, i, i+1)
-					g.player.ArrangeHand()
+					client.Cards = slices.Delete(client.Cards, i, i+1)
+					client.ArrangeHand()
 					break
 				}
 			}
@@ -393,21 +393,21 @@ func (g *Game) Update() error {
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 
 			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(g.player.Cards) - 1; i >= 0; i-- {
-				card := g.player.Cards[i]
+			for i := len(client.Cards) - 1; i >= 0; i-- {
+				card := client.Cards[i]
 				if card.Sprite.In(x, y) {
-					g.trick.playCard(g.player.Cards[i])
-					g.player.Cards = slices.Delete(g.player.Cards, i, i+1)
-					g.player.ArrangeHand()
+					g.trick.playCard(client.Cards[i])
+					client.Cards = slices.Delete(client.Cards, i, i+1)
+					client.ArrangeHand()
 					break
 				}
 			}
 
-			if g.drawPile.Sprite.In(x, y) && len(g.player.Cards) < 5 {
+			if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
 				card := g.drawPile.drawCard(.35, 0, 0, 0)
 				if card != nil {
-					g.player.Cards = append(g.player.Cards, card)
-					g.player.ArrangeHand()
+					client.Cards = append(client.Cards, card)
+					client.ArrangeHand()
 				}
 			}
 		}
@@ -430,17 +430,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op := ebiten.DrawImageOptions{}
 
 	if !g.IsPickingTrump() {
-		g.player.Draw(screen, op)
+		g.GetClient().Draw(screen, op)
 	}
 
 	g.drawPile.Draw(screen, op)
 	g.trick.Draw(screen, op)
 
-	for _, hand := range g.oppPlayers {
-		hand.Draw(screen, op)
+	for _, team := range g.teams {
+		for _, player := range team.players {
+			if player.Id != g.GetClient().Id {
+				// Simply draw the other players (non-client)
+				player.Draw(screen, op)
+			}
+		}
 	}
 
-	if len(g.player.Cards) > 5 {
+	// We've got some work to do for the client
+	if len(g.GetClient().Cards) > 5 {
 		g.overlay.Draw(screen)
 
 		var (
@@ -457,7 +463,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		txtW, txtH := text.Measure(discardText, fontFace, 0)
 		txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
 		text.Draw(screen, discardText, fontFace, &txtOp)
-		g.player.Draw(screen, op)
+		g.GetClient().Draw(screen, op)
 
 	} else if g.activePlayer == 0 && g.trumpSuit == nil {
 		g.overlay.Draw(screen)
@@ -466,15 +472,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		g.buttonConfirm.Draw(screen, op)
 		g.buttonCancel.Draw(screen, op)
-		g.player.Draw(screen, op)
+		g.GetClient().Draw(screen, op)
 	}
-
-	// numInTrick := ""
-	// for _, card := range g.drawPile.Pile {
-	// 	numInTrick = fmt.Sprintf("%vSuit: %v Num: %v\n", numInTrick, card/6, card%6)
-	// }
-	// ebitenutil.DebugPrint(screen, numInTrick)
-
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {

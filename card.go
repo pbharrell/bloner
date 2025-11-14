@@ -4,6 +4,7 @@ import (
 	"image"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/pbharrell/bloner-server/connection"
 	"github.com/pbharrell/bloner/graphics"
 )
 
@@ -95,6 +96,13 @@ func CreateCard(suit Suit, number Number, scale float64, x int, y int, angle int
 		Suit:        suit,
 		Number:      number,
 		BlankSideUp: false,
+	}
+}
+
+func (c *Card) Encode() connection.Card {
+	return connection.Card{
+		Suit:   uint8(c.Suit),
+		Number: uint8(c.Number),
 	}
 }
 
