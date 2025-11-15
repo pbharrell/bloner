@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -155,19 +154,19 @@ func (g *Game) init() {
 
 	g.fontSource = fontSource
 
-	g.drawPile.Sprite = *graphics.CreateSpriteFromFile("./assets/ace_of_spades.png", .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
+	g.drawPile.Sprite = *graphics.CreateSpriteFromFile(cardImageFilenames[len(cardImageFilenames)-1][0], .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
 	g.drawPile.Sprite.X = screenWidth/2 - g.drawPile.Sprite.ImageWidth - 20
 	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.drawPile.shuffleDrawPile()
 
-	g.teams[uint8(Black)].teamColor = Black
-	g.teams[uint8(Red)].teamColor = Red
-	g.teams[uint8(Black)].tricksWon = 0
-	g.teams[uint8(Red)].tricksWon = 0
-	g.teams[uint8(Black)].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile)
-	g.teams[uint8(Red)].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile)
-	g.teams[uint8(Black)].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile)
-	g.teams[uint8(Red)].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile)
+	g.teams[Black].teamColor = Black
+	g.teams[Red].teamColor = Red
+	g.teams[Black].tricksWon = 0
+	g.teams[Red].tricksWon = 0
+	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile)
+	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile)
+	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile)
+	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile)
 
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
@@ -230,6 +229,12 @@ func DecodeCardPile(encPile []connection.Card, scale float64) []*Card {
 	return pile
 }
 
+func (g *Game) ArrangeTeams() {
+	clientPos := g.GetClient().AbsPos
+	g.teams[0].Arrange(clientPos)
+	g.teams[1].Arrange(clientPos)
+}
+
 func (g *Game) EndTurn() {
 	g.activePlayer = (g.activePlayer + 1) % 4
 }
@@ -252,8 +257,8 @@ func (g *Game) EncodeGameState() connection.GameState {
 	encPlayPile := g.trick.Encode()
 
 	teamState := [2]connection.TeamState{
-		g.teams[uint8(Black)].Encode(),
-		g.teams[uint8(Red)].Encode(),
+		g.teams[Black].Encode(),
+		g.teams[Red].Encode(),
 	}
 
 	return connection.GameState{
@@ -280,74 +285,12 @@ func (g *Game) DecodeGameState(state connection.GameState) {
 		g.drawPile.Pile[i] = int(card.Suit)*6 + int(card.Number)
 	}
 
-	g.trick.Pile = DecodeCardPile(state.PlayPile, g.trick.Sprite.ImageScale)
+	g.trick.Decode(state.PlayPile)
 
-	g.teams[uint8(Black)].Decode(state.TeamState[uint8(Black)])
-	g.teams[uint8(Red)].Decode(state.TeamState[uint8(Red)])
-}
+	g.teams[Black].Decode(Black, state.TeamState[Black])
+	g.teams[Red].Decode(Red, state.TeamState[Red])
 
-func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
-	println("Player with id:", data.PlayerId)
-	println("Lobby with id:", data.LobbyId)
-
-	g.debugPrintln("Handled lobby assign message!")
-}
-
-func (g *Game) HandleStateRequestMessage() {
-	gameState := g.EncodeGameState()
-	fmt.Printf("%v", gameState)
-	g.server.Send(connection.Message{
-		Type: "state_res",
-		Data: gameState,
-	})
-
-	g.debugPrintln("Handled state request message!")
-}
-
-func (g *Game) HandleStateResponseMessage(data connection.GameState) {
-	g.DecodeGameState(data)
-}
-
-func (g *Game) HandleMessage(msg connection.Message) {
-	// Marshal Data back into JSON bytes
-	raw, err := json.Marshal(msg.Data)
-	if err != nil {
-		println("marshal error:", err)
-		return
-	}
-
-	switch msg.Type {
-	case "lobby_assign":
-		var lobbyAssign connection.LobbyAssign
-		if err := json.Unmarshal(raw, &lobbyAssign); err != nil {
-			println("LobbyAssign unmarshal error:", err)
-			return
-		}
-
-		g.HandleLobbyAssignMessage(lobbyAssign)
-		break
-	case "state_req":
-		g.HandleStateRequestMessage()
-		break
-
-	case "state_res":
-		var stateResponse connection.StateResponse
-		if err := json.Unmarshal(raw, &stateResponse); err != nil {
-			println("LobbyAssign unmarshal error:", err)
-			return
-		}
-
-		g.HandleStateResponseMessage(stateResponse)
-		break
-
-	default:
-		println("Message with unexpected type encountered:", msg.Type)
-		return
-	}
-
-	g.debugPrintln(fmt.Sprintf("Type:", msg.Type))
-	g.debugPrintln(fmt.Sprintf("Data:", msg.Data))
-
+	g.ArrangeTeams()
 }
 
 func (g *Game) Update() error {

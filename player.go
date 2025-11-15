@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/pbharrell/bloner-server/connection"
@@ -19,31 +21,23 @@ var (
 	maxSpan = [5]int{0, 25, 40, 50, 60}
 )
 
-type Player struct {
-	Id              int
-	Cards           []*Card
-	AbsPos          PlayPos
-	RelPos          PlayPos
+type PosInfo struct {
+	cardHeight      int
 	SideLen         int
 	fullPercentSpan int
 	perpAxisPos     int
-	tricksWon       int
 }
 
-func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale float64, drawPile *DrawPile) Player {
-	if handSize == 0 {
-		return Player{}
-	}
+type Player struct {
+	Id        int
+	Cards     []*Card
+	AbsPos    PlayPos
+	RelPos    PlayPos
+	PosInfo   PosInfo
+	tricksWon int
+}
 
-	cards := make([]*Card, handSize)
-	for i := range cards {
-		if drawPile != nil {
-			cards[i] = drawPile.drawCard(scale, 0, 0, 0)
-		} else {
-			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0)
-		}
-	}
-
+func GetPosInfoFromPos(relPos PlayPos, cardHeight int) PosInfo {
 	var (
 		sideLen         int
 		percentHandSpan int
@@ -54,7 +48,7 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 	case Bottom:
 		sideLen = screenWidth
 		percentHandSpan = 60
-		perpAxisPos = screenHeight - cards[0].Sprite.ImageHeight - 20
+		perpAxisPos = screenHeight - cardHeight - 20
 
 	case Left:
 		sideLen = screenHeight
@@ -69,27 +63,60 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 	case Right:
 		sideLen = screenHeight
 		percentHandSpan = 20
-		perpAxisPos = screenWidth - cards[0].Sprite.ImageHeight - 20
+		perpAxisPos = screenWidth - cardHeight - 20
 	}
 
-	hand := Player{
-		Id:              id,
-		Cards:           cards,
-		AbsPos:          relPos, // FIXME:
-		RelPos:          relPos,
+	return PosInfo{
+		cardHeight:      cardHeight,
 		SideLen:         sideLen,
 		fullPercentSpan: percentHandSpan,
 		perpAxisPos:     perpAxisPos,
 	}
+}
+
+func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale float64, drawPile *DrawPile) Player {
+	if handSize == 0 {
+		return Player{}
+	}
+
+	cards := make([]*Card, handSize)
+	for i := range cards {
+		if drawPile != nil {
+			cards[i] = drawPile.drawCard(scale, 0, 0, 0)
+			// println("player with id:", id, "drew:", NumberToString(cards[i].Number), "of", SuitToString(cards[i].Suit))
+		} else {
+			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0)
+		}
+	}
+
+	hand := Player{
+		Id:      id,
+		Cards:   cards,
+		AbsPos:  relPos,
+		RelPos:  relPos,
+		PosInfo: GetPosInfoFromPos(relPos, cards[0].Sprite.ImageHeight),
+	}
 
 	// Calculate and set the card position
-	hand.ArrangeHand()
+	hand.Arrange(Bottom)
 
 	return hand
 }
 
-func (p *Player) Decode(playerState connection.PlayerState) {
+func (p *Player) Arrange(clientPos PlayPos) {
+	p.RelPos = PlayPos((uint8(p.AbsPos) - uint8(clientPos)) % 4)
+	p.PosInfo = GetPosInfoFromPos(p.RelPos, p.PosInfo.cardHeight)
+	p.ArrangeHand()
+
+	fmt.Printf("Pos calc for player w/ id: %v\n", p.Id)
+	fmt.Printf("Abs pos: %v\n", p.AbsPos)
+	fmt.Printf("Client pos: %v\n", clientPos)
+	fmt.Printf("Resultant rel pos: %v\n\n", p.RelPos)
+}
+
+func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connection.PlayerState) {
 	p.Cards = DecodeCardPile(playerState.Cards, .35)
+	p.AbsPos = PlayPos(uint8(teamColor)*2 + playerNum)
 }
 
 func (p *Player) Encode() connection.PlayerState {
@@ -123,7 +150,7 @@ func (p *Player) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 
 func (p *Player) ArrangeHand() {
 	cards := p.Cards
-	sideLen := p.SideLen
+	sideLen := p.PosInfo.SideLen
 
 	// Assume that all the cards are of the same width
 	numCards := len(cards)
@@ -133,9 +160,9 @@ func (p *Player) ArrangeHand() {
 
 	var percentHandSpan int
 	if len(cards) <= len(maxSpan) {
-		percentHandSpan = min(p.fullPercentSpan, maxSpan[len(cards)-1])
+		percentHandSpan = min(p.PosInfo.fullPercentSpan, maxSpan[len(cards)-1])
 	} else {
-		percentHandSpan = p.fullPercentSpan
+		percentHandSpan = p.PosInfo.fullPercentSpan
 	}
 
 	cardWidth := cards[0].Sprite.ImageWidth
@@ -150,18 +177,18 @@ func (p *Player) ArrangeHand() {
 		switch p.RelPos {
 		case Bottom:
 			cards[cardInd].Sprite.X = playAxisPos
-			cards[cardInd].Sprite.Y = p.perpAxisPos
+			cards[cardInd].Sprite.Y = p.PosInfo.perpAxisPos
 			cards[cardInd].Sprite.Angle = 0
 		case Left:
-			cards[cardInd].Sprite.X = p.perpAxisPos
+			cards[cardInd].Sprite.X = p.PosInfo.perpAxisPos
 			cards[cardInd].Sprite.Y = playAxisPos
 			cards[cardInd].Sprite.Angle = 90
 		case Top:
 			cards[cardInd].Sprite.X = playAxisPos
-			cards[cardInd].Sprite.Y = p.perpAxisPos
+			cards[cardInd].Sprite.Y = p.PosInfo.perpAxisPos
 			cards[cardInd].Sprite.Angle = 180
 		case Right:
-			cards[cardInd].Sprite.X = p.perpAxisPos
+			cards[cardInd].Sprite.X = p.PosInfo.perpAxisPos
 			cards[cardInd].Sprite.Y = playAxisPos
 			cards[cardInd].Sprite.Angle = 270
 		}

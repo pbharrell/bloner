@@ -15,10 +15,15 @@ type Team struct {
 	players   [2]Player
 }
 
-func (t *Team) Decode(teamState connection.TeamState) {
+func (t *Team) Arrange(clientPos PlayPos) {
+	t.players[0].Arrange(clientPos)
+	t.players[1].Arrange(clientPos)
+}
+
+func (t *Team) Decode(teamColor teamColor, teamState connection.TeamState) {
 	t.tricksWon = teamState.TricksWon
-	t.players[0].Decode(teamState.PlayerState[0])
-	t.players[1].Decode(teamState.PlayerState[1])
+	t.players[0].Decode(teamColor, 0, teamState.PlayerState[0])
+	t.players[1].Decode(teamColor, 1, teamState.PlayerState[1])
 }
 
 func (t *Team) Encode() connection.TeamState {

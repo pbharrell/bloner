@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"image"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/pbharrell/bloner-server/connection"
@@ -58,19 +60,77 @@ var (
 )
 
 type Card struct {
-	Sprite      graphics.Sprite
-	Suit        Suit
-	Number      Number
-	BlankSideUp bool
+	Sprite   graphics.Sprite
+	Suit     Suit
+	Number   Number
+	FaceDown bool
 }
 
 var (
-	cardImages      [][]*ebiten.Image // Think of each row as the suit, each col as the num.
-	cardAlphaImages [][]*image.Alpha
+	cardImages         [][]*ebiten.Image // Think of each row as the suit, each col as the num.
+	cardAlphaImages    [][]*image.Alpha
+	cardImageFilenames [][]string
 	// TODO: Blank side image
 )
 
+func SuitToString(suit Suit) string {
+	switch suit {
+	case Spades:
+		return "spades"
+	case Clubs:
+		return "clubs"
+	case Hearts:
+		return "hearts"
+	case Diamonds:
+		return "diamonds"
+	default:
+		return fmt.Sprintf("Found unsupported suit with value %d", suit)
+	}
+}
+
+func NumberToString(num Number) string {
+	switch num {
+	case Nine:
+		return "nine"
+	case Ten:
+		return "ten"
+	case Jack:
+		return "jack"
+	case Queen:
+		return "queen"
+	case King:
+		return "king"
+	case Ace:
+		return "ace"
+	default:
+		return fmt.Sprintf("Found unsupported suit with value %d", num)
+	}
+}
+
+func initCardImageFiles() {
+	// One image for each card + blank side
+	allowedImageFiles := []string{"./assets/ace_of_spades.png", "./assets/ten_of_clubs.png", "./assets/jack_of_clubs.png"}
+
+	cardImageFilenames = make([][]string, 4+1) // <-- the number of suits in play + 1 for blank side
+	for i := range cardImageFilenames {
+		cardImageFilenames[i] = make([]string, 6) // <-- the number of distinct nums in play
+
+		for j := range cardImageFilenames[i] {
+			cardImageFilenames[i][j] = "./assets/" + NumberToString(Number(j)) + "_of_" + SuitToString(Suit(i)) + ".png"
+
+			// TODO: Change the image overriding when other images are in place
+			if !slices.Contains(allowedImageFiles, cardImageFilenames[i][j]) {
+				cardImageFilenames[i][j] = allowedImageFiles[0]
+			}
+		}
+	}
+
+	// FIXME: THIS IS FACE-DOWN CARD IMAGE SOMEDAY
+	allowedImageFiles[len(allowedImageFiles)-1] = "./assets/ace_of_spades.png"
+}
+
 func initCardImages() {
+	initCardImageFiles()
 	cardImages = make([][]*ebiten.Image, 4) // <-- the number of suits in play
 	cardAlphaImages = make([][]*image.Alpha, len(cardImages))
 	for i := range cardAlphaImages {
@@ -79,7 +139,7 @@ func initCardImages() {
 
 		for j := range cardAlphaImages[i] {
 			// Read the file into a byte array
-			cardImage, cardAlphaImage := graphics.LoadImageFromFile("./assets/ace_of_spades.png")
+			cardImage, cardAlphaImage := graphics.LoadImageFromFile(cardImageFilenames[i][j])
 			cardImages[i][j] = cardImage
 			cardAlphaImages[i][j] = cardAlphaImage
 		}
@@ -92,10 +152,10 @@ func CreateCard(suit Suit, number Number, scale float64, x int, y int, angle int
 	}
 
 	return &Card{
-		Sprite:      *graphics.CreateSprite(cardImages[suit][number], cardAlphaImages[suit][number], scale, x, y, angle, 0, 0, 0),
-		Suit:        suit,
-		Number:      number,
-		BlankSideUp: false,
+		Sprite:   *graphics.CreateSprite(cardImages[suit][number], cardAlphaImages[suit][number], scale, x, y, angle, 0, 0, 0),
+		Suit:     suit,
+		Number:   number,
+		FaceDown: true,
 	}
 }
 

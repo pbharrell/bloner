@@ -13,6 +13,17 @@ type Trick struct {
 	Y      int
 }
 
+func (t *Trick) SyncSprite() {
+	t.Sprite = t.Pile[len(t.Pile)-1].Sprite
+	t.Sprite.X = t.X
+	t.Sprite.Y = t.Y
+}
+
+func (t *Trick) Decode(pile []connection.Card) {
+	t.Pile = DecodeCardPile(pile, t.Sprite.ImageScale)
+	t.SyncSprite()
+}
+
 func (t *Trick) Encode() []connection.Card {
 	encTrick := make([]connection.Card, len(t.Pile))
 	for i, card := range t.Pile {
@@ -24,9 +35,7 @@ func (t *Trick) Encode() []connection.Card {
 
 func (t *Trick) playCard(card *Card) {
 	t.Pile = append(t.Pile, card)
-	t.Sprite = t.Pile[len(t.Pile)-1].Sprite
-	t.Sprite.X = t.X
-	t.Sprite.Y = t.Y
+	t.SyncSprite()
 }
 
 func (t *Trick) clear() {
