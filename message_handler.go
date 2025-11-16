@@ -12,6 +12,8 @@ func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
 	println("Lobby with id:", data.LobbyId)
 
 	g.id = data.PlayerId
+	g.lobbyId = data.LobbyId
+	g.mode = LobbyAssigned
 	g.debugPrintln("Handled lobby assign message!")
 }
 
@@ -27,6 +29,7 @@ func (g *Game) HandleStateRequestMessage() {
 }
 
 func (g *Game) HandleStateResponseMessage(data connection.GameState) {
+	g.mode = GameActive
 	g.DecodeGameState(data)
 }
 

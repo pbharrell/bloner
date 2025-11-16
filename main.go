@@ -67,11 +67,12 @@ const (
 	maxAngle     = 360
 )
 
-type phase uint8
+type mode uint8
 
 const (
-	LobbyWait phase = iota
-	GameStart
+	LobbyWait mode = iota
+	LobbyAssigned
+	GameActive
 )
 
 type Game struct {
@@ -79,7 +80,8 @@ type Game struct {
 	debug         bool
 	server        connection.Server
 	id            int
-	phase         phase
+	mode          mode
+	lobbyId       int
 	fontSource    *text.GoTextFaceSource
 	trumpSuit     *Suit
 	teams         [2]Team
@@ -152,9 +154,13 @@ func (g *Game) init() {
 		log.Fatal(err)
 	}
 
+	g.mode = LobbyWait
+
+	g.lobbyId = -1
+
 	g.fontSource = fontSource
 
-	g.drawPile.Sprite = *graphics.CreateSpriteFromFile(cardImageFilenames[len(cardImageFilenames)-1][0], .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
+	g.drawPile.Sprite = *graphics.CreateSprite(blankCardImage, blankCardAlphaImage, .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
 	g.drawPile.Sprite.X = screenWidth/2 - g.drawPile.Sprite.ImageWidth - 20
 	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.drawPile.shuffleDrawPile()
@@ -163,14 +169,14 @@ func (g *Game) init() {
 	g.teams[Red].teamColor = Red
 	g.teams[Black].tricksWon = 0
 	g.teams[Red].tricksWon = 0
-	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile)
-	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile)
-	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile)
-	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile)
+	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile /* faceDown */, false)
+	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile /* faceDown */, false)
+	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile /* faceDown */, false)
+	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile /* faceDown */, false)
 
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
-	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0))
+	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
 
 	// g.activePlayer = LeftOpp
 	g.activePlayer = 0 // FIXME:
@@ -207,7 +213,7 @@ func (g *Game) debugPrintln(msg string) {
 	}
 }
 
-func (g *Game) GetClient() *Player {
+func (g *Game) GetPlayer(id int) *Player {
 	for i := range g.teams {
 		for j := range g.teams[i].players {
 			if g.id == g.teams[i].players[j].Id {
@@ -216,14 +222,26 @@ func (g *Game) GetClient() *Player {
 		}
 	}
 
-	println("ERROR: Should not be here! Called `game.GetClient()` with no client present in player list")
+	fmt.Printf("ERROR: Should not be here! Called `game.GetPlayer(%v)` with no player matching that id present in player list", id)
 	return nil
+}
+
+func (g *Game) GetClient() *Player {
+	return g.GetPlayer(g.id)
+}
+
+func (g *Game) SetActiveId(id int) {
+	g.activePlayer = id
+}
+
+func (g *Game) SetActivePlayer(player *Player) {
+	g.activePlayer = player.Id
 }
 
 func DecodeCardPile(encPile []connection.Card, scale float64) []*Card {
 	pile := make([]*Card, len(encPile))
 	for i, encCard := range encPile {
-		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), scale, 0, 0, 0))
+		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), scale, 0, 0, 0 /* faceDown */, true))
 	}
 
 	return pile
@@ -251,7 +269,7 @@ func (g *Game) EncodeGameState() connection.GameState {
 
 	encDrawPile := make([]connection.Card, len(g.drawPile.Pile))
 	for i, cardInt := range g.drawPile.Pile {
-		encDrawPile[i] = CreateCard(Suit(cardInt/6), Number(cardInt%6), 0, 0, 0, 0).Encode()
+		encDrawPile[i] = CreateCard(Suit(cardInt/6), Number(cardInt%6), 0, 0, 0, 0 /*faceDown*/, true).Encode()
 	}
 
 	encPlayPile := g.trick.Encode()
@@ -272,7 +290,7 @@ func (g *Game) EncodeGameState() connection.GameState {
 }
 
 func (g *Game) DecodeGameState(state connection.GameState) {
-	g.activePlayer = state.ActivePlayer
+	g.SetActiveId(state.ActivePlayer)
 
 	if state.TrumpSuit < 0 {
 		g.trumpSuit = nil
@@ -306,7 +324,28 @@ func (g *Game) Update() error {
 		break
 	}
 
+	if g.debug {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && g.mode != GameActive {
+			g.mode++
+		}
+	}
+
+	switch g.mode {
+	case LobbyWait:
+		break
+	case LobbyAssigned:
+		break
+	case GameActive:
+		g.UpdateGameActive()
+		break
+	}
+
+	return nil
+}
+
+func (g *Game) UpdateGameActive() {
 	client := g.GetClient()
+
 	if len(client.Cards) > 5 {
 		x, y := ebiten.CursorPosition()
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
@@ -347,7 +386,7 @@ func (g *Game) Update() error {
 			}
 
 			if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
-				card := g.drawPile.drawCard(.35, 0, 0, 0)
+				card := g.drawPile.drawCard(.35, 0, 0, 0 /* faceDown */, false)
 				if card != nil {
 					client.Cards = append(client.Cards, card)
 					client.ArrangeHand()
@@ -357,13 +396,63 @@ func (g *Game) Update() error {
 	}
 
 	g.drawPile.Update()
-
-	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{161, 191, 123, 1})
 
+	switch g.mode {
+	case LobbyWait:
+		g.DrawLobbyWait(screen)
+		break
+	case LobbyAssigned:
+		g.DrawLobbyAssigned(screen)
+		break
+	case GameActive:
+		g.DrawGameActive(screen)
+		break
+	}
+}
+
+func (g *Game) DrawLobbyWait(screen *ebiten.Image) {
+	g.overlay.Draw(screen)
+
+	var (
+		discardText = "Searching for a lobby..."
+		txtOp       = text.DrawOptions{}
+	)
+
+	// Create font faces with different sizes as needed
+	fontFace := &text.GoTextFace{
+		Source: g.fontSource,
+		Size:   32,
+	}
+
+	txtW, txtH := text.Measure(discardText, fontFace, 0)
+	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
+	text.Draw(screen, discardText, fontFace, &txtOp)
+}
+
+func (g *Game) DrawLobbyAssigned(screen *ebiten.Image) {
+	g.overlay.Draw(screen)
+
+	var (
+		discardText = fmt.Sprintf("Lobby found with id: %v!", g.lobbyId)
+		txtOp       = text.DrawOptions{}
+	)
+
+	// Create font faces with different sizes as needed
+	fontFace := &text.GoTextFace{
+		Source: g.fontSource,
+		Size:   32,
+	}
+
+	txtW, txtH := text.Measure(discardText, fontFace, 0)
+	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
+	text.Draw(screen, discardText, fontFace, &txtOp)
+}
+
+func (g *Game) DrawGameActive(screen *ebiten.Image) {
 	// Draw each sprite.
 	// DrawImage can be called many many times, but in the implementation,
 	// the actual draw call to GPU is very few since these calls satisfy

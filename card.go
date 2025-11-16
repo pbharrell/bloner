@@ -67,9 +67,12 @@ type Card struct {
 }
 
 var (
-	cardImages         [][]*ebiten.Image // Think of each row as the suit, each col as the num.
-	cardAlphaImages    [][]*image.Alpha
-	cardImageFilenames [][]string
+	cardImages          [][]*ebiten.Image // Think of each row as the suit, each col as the num.
+	cardAlphaImages     [][]*image.Alpha
+	blankCardImage      *ebiten.Image
+	blankCardAlphaImage *image.Alpha
+	cardImageFilenames  [][]string
+	blankImageFilename  string
 	// TODO: Blank side image
 )
 
@@ -111,7 +114,7 @@ func initCardImageFiles() {
 	// One image for each card + blank side
 	allowedImageFiles := []string{"./assets/ace_of_spades.png", "./assets/ten_of_clubs.png", "./assets/jack_of_clubs.png"}
 
-	cardImageFilenames = make([][]string, 4+1) // <-- the number of suits in play + 1 for blank side
+	cardImageFilenames = make([][]string, 4) // <-- the number of suits in play + 1 for blank side
 	for i := range cardImageFilenames {
 		cardImageFilenames[i] = make([]string, 6) // <-- the number of distinct nums in play
 
@@ -126,7 +129,7 @@ func initCardImageFiles() {
 	}
 
 	// FIXME: THIS IS FACE-DOWN CARD IMAGE SOMEDAY
-	allowedImageFiles[len(allowedImageFiles)-1] = "./assets/ace_of_spades.png"
+	blankImageFilename = "./assets/blank.png"
 }
 
 func initCardImages() {
@@ -144,19 +147,24 @@ func initCardImages() {
 			cardAlphaImages[i][j] = cardAlphaImage
 		}
 	}
+
+	blankCardImage, blankCardAlphaImage = graphics.LoadImageFromFile(blankImageFilename)
 }
 
-func CreateCard(suit Suit, number Number, scale float64, x int, y int, angle int) *Card {
+func CreateCard(suit Suit, number Number, scale float64, x int, y int, angle int, faceDown bool) *Card {
 	if len(cardImages) < 4 || len(cardImages[0]) < 6 {
 		panic("`cardImages` of unexpected size! Please call `InitCardImages()` first!")
 	}
 
-	return &Card{
+	c := &Card{
 		Sprite:   *graphics.CreateSprite(cardImages[suit][number], cardAlphaImages[suit][number], scale, x, y, angle, 0, 0, 0),
 		Suit:     suit,
 		Number:   number,
-		FaceDown: true,
+		FaceDown: faceDown,
 	}
+
+	c.UpdateSprite()
+	return c
 }
 
 func (c *Card) Encode() connection.Card {
@@ -166,9 +174,14 @@ func (c *Card) Encode() connection.Card {
 	}
 }
 
-func (c *Card) Update() {
-	// TODO: Change sprite images to blank if `BlankSideUp` true
-	c.Sprite.Update()
+func (c *Card) UpdateSprite() {
+	if c.FaceDown {
+		c.Sprite.Image = blankCardImage
+		c.Sprite.AlphaImage = blankCardAlphaImage
+	} else {
+		c.Sprite.Image = cardImages[c.Suit][c.Number]
+		c.Sprite.AlphaImage = cardAlphaImages[c.Suit][c.Number]
+	}
 }
 
 func (c *Card) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/pbharrell/bloner-server/connection"
@@ -74,7 +72,7 @@ func GetPosInfoFromPos(relPos PlayPos, cardHeight int) PosInfo {
 	}
 }
 
-func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale float64, drawPile *DrawPile) Player {
+func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale float64, drawPile *DrawPile, faceDown bool) Player {
 	if handSize == 0 {
 		return Player{}
 	}
@@ -82,10 +80,10 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 	cards := make([]*Card, handSize)
 	for i := range cards {
 		if drawPile != nil {
-			cards[i] = drawPile.drawCard(scale, 0, 0, 0)
+			cards[i] = drawPile.drawCard(scale, 0, 0, 0, faceDown)
 			// println("player with id:", id, "drew:", NumberToString(cards[i].Number), "of", SuitToString(cards[i].Suit))
 		} else {
-			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0)
+			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0, faceDown)
 		}
 	}
 
@@ -107,11 +105,6 @@ func (p *Player) Arrange(clientPos PlayPos) {
 	p.RelPos = PlayPos((uint8(p.AbsPos) - uint8(clientPos)) % 4)
 	p.PosInfo = GetPosInfoFromPos(p.RelPos, p.PosInfo.cardHeight)
 	p.ArrangeHand()
-
-	fmt.Printf("Pos calc for player w/ id: %v\n", p.Id)
-	fmt.Printf("Abs pos: %v\n", p.AbsPos)
-	fmt.Printf("Client pos: %v\n", clientPos)
-	fmt.Printf("Resultant rel pos: %v\n\n", p.RelPos)
 }
 
 func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connection.PlayerState) {
@@ -138,7 +131,7 @@ func (p *Player) GetTeam() teamColor {
 
 func (p *Player) Update() {
 	for i := range p.Cards {
-		p.Cards[i].Update()
+		p.Cards[i].UpdateSprite()
 	}
 }
 

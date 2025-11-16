@@ -29,7 +29,7 @@ func (p *DrawPile) discard(card *Card) {
 	p.Pile = append(p.Pile, int(card.Suit)*int(card.Number))
 }
 
-func (p *DrawPile) drawCard(scale float64, x int, y int, angle int) *Card {
+func (p *DrawPile) drawCard(scale float64, x int, y int, angle int, faceDown bool) *Card {
 	if len(p.Pile) == 0 {
 		return nil
 	}
@@ -38,7 +38,7 @@ func (p *DrawPile) drawCard(scale float64, x int, y int, angle int) *Card {
 	suit := Suit(num / 6)
 	number := Number(num % 6)
 
-	card := CreateCard(suit, number, scale, x, y, angle)
+	card := CreateCard(suit, number, scale, x, y, angle, faceDown)
 
 	// Drop the last card off the pile
 	p.Pile = p.Pile[:len(p.Pile)-1]
