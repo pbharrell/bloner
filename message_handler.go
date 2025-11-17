@@ -18,17 +18,23 @@ func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
 }
 
 func (g *Game) HandleStateRequestMessage() {
-	gameState := g.EncodeGameState()
+	var gameState connection.StateResponse
+
+	gameState = g.EncodeGameState()
 	fmt.Printf("%v", gameState)
-	g.server.Send(connection.Message{
-		Type: "state_res",
-		Data: gameState,
-	})
+	if g.server.connected {
+		g.server.server.Send(connection.Message{
+			Type: "state_res",
+			Data: gameState,
+		})
+	} else {
+		println("state_res not sent since no server is connected")
+	}
 
 	g.debugPrintln("Handled state request message!")
 }
 
-func (g *Game) HandleStateResponseMessage(data connection.GameState) {
+func (g *Game) HandleStateResponseMessage(data connection.StateResponse) {
 	g.mode = GameActive
 	g.DecodeGameState(data)
 }

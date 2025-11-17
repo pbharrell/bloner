@@ -75,10 +75,27 @@ const (
 	GameActive
 )
 
+type turnType uint8
+
+const (
+	TrumpChoice turnType = iota
+	CardPlay
+)
+
+type Server struct {
+	connected bool
+	server    connection.Server
+}
+
+type TurnInfo struct {
+	inited   bool
+	turnInfo connection.TurnInfo
+}
+
 type Game struct {
 	inited        bool
 	debug         bool
-	server        connection.Server
+	server        Server
 	id            int
 	mode          mode
 	lobbyId       int
@@ -92,6 +109,7 @@ type Game struct {
 	overlay       graphics.Shape
 	drawPile      DrawPile
 	trick         Trick
+	turnInfo      TurnInfo
 }
 
 func (g *Game) initOverlay() {
@@ -178,8 +196,7 @@ func (g *Game) init() {
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
 
-	// g.activePlayer = LeftOpp
-	g.activePlayer = 0 // FIXME:
+	g.activePlayer = 0
 
 	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
@@ -199,12 +216,13 @@ func (g *Game) init() {
 		return
 	}
 
-	g.server = connection.Server{
+	g.server.server = connection.Server{
 		Conn: conn,
 		Data: make(chan connection.Message),
 	}
+	g.server.connected = true
 
-	go g.server.Listen()
+	go g.server.server.Listen()
 }
 
 func (g *Game) debugPrintln(msg string) {
@@ -238,19 +256,32 @@ func (g *Game) SetActivePlayer(player *Player) {
 	g.activePlayer = player.Id
 }
 
-func DecodeCardPile(encPile []connection.Card, scale float64) []*Card {
+func DecodeCardPile(encPile []connection.Card, scale float64, faceDown bool) []*Card {
 	pile := make([]*Card, len(encPile))
 	for i, encCard := range encPile {
-		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), scale, 0, 0, 0 /* faceDown */, true))
+		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), scale, 0, 0, 0, faceDown))
 	}
 
 	return pile
 }
 
 func (g *Game) ArrangeTeams() {
-	clientPos := g.GetClient().AbsPos
-	g.teams[0].Arrange(clientPos)
-	g.teams[1].Arrange(clientPos)
+	client := g.GetClient()
+	g.teams[0].Arrange(client.Id, client.AbsPos)
+	g.teams[1].Arrange(client.Id, client.AbsPos)
+	println("consider me: arranged")
+}
+
+func (g *Game) SendTurnInfo() {
+	if g.server.connected {
+		g.server.server.Send(connection.Message{
+			Type: "turn_info",
+			Data: g.turnInfo.turnInfo,
+		})
+		g.turnInfo.inited = false
+	} else {
+		println("turn_info not sent since no server is connected.")
+	}
 }
 
 func (g *Game) EndTurn() {
@@ -316,8 +347,15 @@ func (g *Game) Update() error {
 		g.init()
 	}
 
+	if !g.turnInfo.inited {
+		g.turnInfo.turnInfo = connection.TurnInfo{
+			PlayerId: g.GetClient().Id,
+		}
+		g.turnInfo.inited = true
+	}
+
 	select {
-	case msg := <-g.server.Data:
+	case msg := <-g.server.server.Data:
 		g.HandleMessage(msg)
 		break
 	default:
@@ -345,7 +383,13 @@ func (g *Game) Update() error {
 
 func (g *Game) UpdateGameActive() {
 	client := g.GetClient()
+	if g.activePlayer == client.Id {
+		g.UpdateClientTurn()
+	}
+}
 
+func (g *Game) UpdateClientTurn() {
+	client := g.GetClient()
 	if len(client.Cards) > 5 {
 		x, y := ebiten.CursorPosition()
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
@@ -357,7 +401,12 @@ func (g *Game) UpdateGameActive() {
 					discarded := client.Cards[i]
 					g.drawPile.discard(discarded)
 					client.Cards = slices.Delete(client.Cards, i, i+1)
-					client.ArrangeHand()
+					client.ArrangeHand(client.Id)
+
+					g.turnInfo.turnInfo.TurnType = connection.TrumpDiscard
+					g.turnInfo.turnInfo.TrumpDiscard = discarded.Encode()
+					g.SendTurnInfo()
+					g.EndTurn()
 					break
 				}
 			}
@@ -380,16 +429,19 @@ func (g *Game) UpdateGameActive() {
 				if card.Sprite.In(x, y) {
 					g.trick.playCard(client.Cards[i])
 					client.Cards = slices.Delete(client.Cards, i, i+1)
-					client.ArrangeHand()
+					client.ArrangeHand(client.Id)
 					break
 				}
 			}
 
-			if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
-				card := g.drawPile.drawCard(.35, 0, 0, 0 /* faceDown */, false)
-				if card != nil {
-					client.Cards = append(client.Cards, card)
-					client.ArrangeHand()
+			// Only want to add a card to hand from draw pile if debugging
+			if g.debug {
+				if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
+					card := g.drawPile.drawCard(.35, 0, 0, 0 /* faceDown */, false)
+					if card != nil {
+						client.Cards = append(client.Cards, card)
+						client.ArrangeHand(client.Id)
+					}
 				}
 			}
 		}

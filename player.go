@@ -87,7 +87,7 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 		}
 	}
 
-	hand := Player{
+	player := Player{
 		Id:      id,
 		Cards:   cards,
 		AbsPos:  relPos,
@@ -96,19 +96,20 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 	}
 
 	// Calculate and set the card position
-	hand.Arrange(Bottom)
+	player.Arrange(0, Bottom)
 
-	return hand
+	return player
 }
 
-func (p *Player) Arrange(clientPos PlayPos) {
+func (p *Player) Arrange(clientId int, clientPos PlayPos) {
 	p.RelPos = PlayPos((uint8(p.AbsPos) - uint8(clientPos)) % 4)
 	p.PosInfo = GetPosInfoFromPos(p.RelPos, p.PosInfo.cardHeight)
-	p.ArrangeHand()
+	p.ArrangeHand(clientId)
 }
 
 func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connection.PlayerState) {
-	p.Cards = DecodeCardPile(playerState.Cards, .35)
+	// Face down value should be overridden by `ArrangeHand` later
+	p.Cards = DecodeCardPile(playerState.Cards, .35 /*faceDown*/, true)
 	p.AbsPos = PlayPos(uint8(teamColor)*2 + playerNum)
 }
 
@@ -141,7 +142,7 @@ func (p *Player) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 	}
 }
 
-func (p *Player) ArrangeHand() {
+func (p *Player) ArrangeHand(clientId int) {
 	cards := p.Cards
 	sideLen := p.PosInfo.SideLen
 
@@ -166,6 +167,9 @@ func (p *Player) ArrangeHand() {
 	handStart := int(float32(sideLen-int(len(cards)*cardWidth+max(0, len(cards)-1)*cardMargin)) / 2)
 
 	for cardInd := range cards {
+		cards[cardInd].FaceDown = clientId != p.Id
+		cards[cardInd].UpdateSprite()
+
 		playAxisPos := handStart + (cardInd * (cardWidth + cardMargin))
 		switch p.RelPos {
 		case Bottom:

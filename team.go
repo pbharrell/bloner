@@ -15,9 +15,9 @@ type Team struct {
 	players   [2]Player
 }
 
-func (t *Team) Arrange(clientPos PlayPos) {
-	t.players[0].Arrange(clientPos)
-	t.players[1].Arrange(clientPos)
+func (t *Team) Arrange(clientId int, clientPos PlayPos) {
+	t.players[0].Arrange(clientId, clientPos)
+	t.players[1].Arrange(clientId, clientPos)
 }
 
 func (t *Team) Decode(teamColor teamColor, teamState connection.TeamState) {

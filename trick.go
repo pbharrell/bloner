@@ -20,7 +20,7 @@ func (t *Trick) SyncSprite() {
 }
 
 func (t *Trick) Decode(pile []connection.Card) {
-	t.Pile = DecodeCardPile(pile, t.Sprite.ImageScale)
+	t.Pile = DecodeCardPile(pile, t.Sprite.ImageScale, false)
 	t.SyncSprite()
 }
 
