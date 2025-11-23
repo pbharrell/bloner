@@ -32,8 +32,14 @@ github.com/jfreymuth/vorbis v1.0.0/go.mod h1:8zy3lUAm9K/rJJk223RKy6vjCZTWC61NA2Q
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
-github.com/pbharrell/bloner-server v0.0.0-20251113122017-689287516d1e h1:bSMneUZnYTrYpIGakMVIsa9BWhonqdx+UkuynwyEPTA=
-github.com/pbharrell/bloner-server v0.0.0-20251113122017-689287516d1e/go.mod h1:G9kVB6DIH55UU91B9AA74D4IVH5e2Yjk3+TKkazHqKQ=
+github.com/pbharrell/bloner-server v0.0.0-20251119030215-76adbe78f9ef h1:MPNO7PkVGNHycOMcwxlsfhxOLyPdAmkd+dUR8gdvYlA=
+github.com/pbharrell/bloner-server v0.0.0-20251119030215-76adbe78f9ef/go.mod h1:G9kVB6DIH55UU91B9AA74D4IVH5e2Yjk3+TKkazHqKQ=
+github.com/pbharrell/bloner-server v0.0.0-20251123130030-faa7ddb9f1ff h1:bWHTnYjJsuhQDCUiJE/O6AG2Tudsq6IPTV/3JcB8o5E=
+github.com/pbharrell/bloner-server v0.0.0-20251123130030-faa7ddb9f1ff/go.mod h1:G9kVB6DIH55UU91B9AA74D4IVH5e2Yjk3+TKkazHqKQ=
+github.com/pbharrell/bloner-server v0.0.0-20251123143051-ec20e9274bd3 h1:vEOnn8ryABXExl5PKLgzK8r+PT/SxS7lCZ/jQAr9zfQ=
+github.com/pbharrell/bloner-server v0.0.0-20251123143051-ec20e9274bd3/go.mod h1:G9kVB6DIH55UU91B9AA74D4IVH5e2Yjk3+TKkazHqKQ=
+github.com/pbharrell/bloner-server v0.0.0-20251123143350-d69ef93ee331 h1:+f8+rggfN9UUTdYgWXFNXcMV3BTZvhI2GOBYkw5T0O8=
+github.com/pbharrell/bloner-server v0.0.0-20251123143350-d69ef93ee331/go.mod h1:G9kVB6DIH55UU91B9AA74D4IVH5e2Yjk3+TKkazHqKQ=
 github.com/pierrec/lz4/v4 v4.1.21 h1:yOVMLb6qSIDP67pl/5F7RepeKYu/VmTyEXvuMI5d9mQ=
 github.com/pierrec/lz4/v4 v4.1.21/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=
 github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4/go.mod h1:4OwLy04Bl9Ef3GJJCoec+30X3LQs/0/m4HFRt/2LUSA=

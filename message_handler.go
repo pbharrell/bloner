@@ -39,6 +39,10 @@ func (g *Game) HandleStateResponseMessage(data connection.StateResponse) {
 	g.DecodeGameState(data)
 }
 
+func (g *Game) HandleTurnInfoMessage(data connection.TurnInfo) {
+	g.DecodeTurnInfo(data)
+}
+
 func (g *Game) HandleMessage(msg connection.Message) {
 	// Marshal Data back into JSON bytes
 	raw, err := json.Marshal(msg.Data)
@@ -64,12 +68,21 @@ func (g *Game) HandleMessage(msg connection.Message) {
 	case "state_res":
 		var stateResponse connection.StateResponse
 		if err := json.Unmarshal(raw, &stateResponse); err != nil {
-			println("LobbyAssign unmarshal error:", err)
+			println("StateResponse unmarshal error:", err)
 			return
 		}
 
 		g.HandleStateResponseMessage(stateResponse)
 		break
+
+	case "turn_info":
+		var turnInfo connection.TurnInfo
+		if err := json.Unmarshal(raw, &turnInfo); err != nil {
+			println("TurnInfo unmarshal error:", err)
+			return
+		}
+
+		g.HandleTurnInfoMessage(turnInfo)
 
 	default:
 		println("Message with unexpected type encountered:", msg.Type)

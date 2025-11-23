@@ -4,7 +4,7 @@ go 1.23.6
 
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.8.8
-	github.com/pbharrell/bloner-server v0.0.0-20251113122017-689287516d1e
+	github.com/pbharrell/bloner-server v0.0.0-20251123143350-d69ef93ee331
 )
 
 require (

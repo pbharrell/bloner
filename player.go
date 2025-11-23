@@ -1,6 +1,8 @@
 package main
 
 import (
+	"slices"
+
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/pbharrell/bloner-server/connection"
@@ -81,7 +83,6 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 	for i := range cards {
 		if drawPile != nil {
 			cards[i] = drawPile.drawCard(scale, 0, 0, 0, faceDown)
-			// println("player with id:", id, "drew:", NumberToString(cards[i].Number), "of", SuitToString(cards[i].Suit))
 		} else {
 			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0, faceDown)
 		}
@@ -109,8 +110,9 @@ func (p *Player) Arrange(clientId int, clientPos PlayPos) {
 
 func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connection.PlayerState) {
 	// Face down value should be overridden by `ArrangeHand` later
+	p.Id = playerState.PlayerId
 	p.Cards = DecodeCardPile(playerState.Cards, .35 /*faceDown*/, true)
-	p.AbsPos = PlayPos(uint8(teamColor)*2 + playerNum)
+	p.AbsPos = PlayPos(uint8(teamColor) + playerNum*2)
 }
 
 func (p *Player) Encode() connection.PlayerState {
@@ -128,6 +130,38 @@ func (p *Player) Encode() connection.PlayerState {
 
 func (p *Player) GetTeam() teamColor {
 	return teamColor(uint8(p.AbsPos) % 2)
+}
+
+func (p *Player) GetCardInd(card *Card) int {
+	for i, c := range p.Cards {
+		if c.Suit == card.Suit && c.Number == card.Number {
+			return i
+		}
+	}
+
+	println("`GetCardInd()` called with no matching card for that hand!")
+	return -1
+}
+
+func (p *Player) Discard(card int) *Card {
+	if card >= len(p.Cards) {
+		return nil
+	}
+
+	discarded := p.Cards[card]
+	p.Cards = slices.Delete(p.Cards, card, card+1)
+	p.ArrangeHand(p.Id)
+	return discarded
+}
+
+func (p *Player) DiscardEncoded(card connection.Card) *Card {
+	for i, c := range p.Cards {
+		if c.Suit == Suit(card.Suit) && c.Number == Number(card.Number) {
+			return p.Discard(i)
+		}
+	}
+
+	return nil
 }
 
 func (p *Player) Update() {

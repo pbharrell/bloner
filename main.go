@@ -35,6 +35,29 @@ var (
 	buttonPressedCancelImage *ebiten.Image
 	buttonPressedCancelAlpha *image.Alpha
 
+	buttonPassImage *ebiten.Image
+	buttonPassAlpha *image.Alpha
+
+	buttonHeartsImage        *ebiten.Image
+	buttonHeartsAlpha        *image.Alpha
+	buttonPressedHeartsImage *ebiten.Image
+	buttonPressedHeartsAlpha *image.Alpha
+
+	buttonDiamondsImage        *ebiten.Image
+	buttonDiamondsAlpha        *image.Alpha
+	buttonPressedDiamondsImage *ebiten.Image
+	buttonPressedDiamondsAlpha *image.Alpha
+
+	buttonClubsImage        *ebiten.Image
+	buttonClubsAlpha        *image.Alpha
+	buttonPressedClubsImage *ebiten.Image
+	buttonPressedClubsAlpha *image.Alpha
+
+	buttonSpadesImage        *ebiten.Image
+	buttonSpadesAlpha        *image.Alpha
+	buttonPressedSpadesImage *ebiten.Image
+	buttonPressedSpadesAlpha *image.Alpha
+
 	ebitenImage *ebiten.Image
 	cardImage   *ebiten.Image
 )
@@ -43,11 +66,26 @@ func init() {
 	overlayImage = ebiten.NewImage(3, 3)
 	overlayImage.Fill(color.RGBA{0, 0, 0, 200})
 
+	// SOURCED FROM: https://bdragon1727.itch.io/basic-pixel-health-bar-and-scroll-bar
 	buttonConfirmImage, buttonConfirmAlpha = graphics.LoadImageFromFile("./assets/confirm_button.png")
 	buttonPressedConfirmImage, buttonPressedConfirmAlpha = graphics.LoadImageFromFile("./assets/confirm_button_pressed.png")
 
 	buttonCancelImage, buttonCancelAlpha = graphics.LoadImageFromFile("./assets/cancel_button.png")
 	buttonPressedCancelImage, buttonPressedCancelAlpha = graphics.LoadImageFromFile("./assets/cancel_button_pressed.png")
+
+	buttonPassImage, buttonPassAlpha = graphics.LoadImageFromFile("./assets/pass_button.png")
+
+	buttonHeartsImage, buttonHeartsAlpha = graphics.LoadImageFromFile("./assets/hearts_button.png")
+	buttonPressedHeartsImage, buttonPressedHeartsAlpha = graphics.LoadImageFromFile("./assets/hearts_button_pressed.png")
+
+	buttonDiamondsImage, buttonDiamondsAlpha = graphics.LoadImageFromFile("./assets/diamonds_button.png")
+	buttonPressedDiamondsImage, buttonPressedDiamondsAlpha = graphics.LoadImageFromFile("./assets/diamonds_button_pressed.png")
+
+	buttonClubsImage, buttonClubsAlpha = graphics.LoadImageFromFile("./assets/clubs_button.png")
+	buttonPressedClubsImage, buttonPressedClubsAlpha = graphics.LoadImageFromFile("./assets/clubs_button_pressed.png")
+
+	buttonSpadesImage, buttonSpadesAlpha = graphics.LoadImageFromFile("./assets/spades_button.png")
+	buttonPressedSpadesImage, buttonPressedSpadesAlpha = graphics.LoadImageFromFile("./assets/spades_button_pressed.png")
 
 	ebitenImage = graphics.LoadImage(&images.Ebiten_png)
 
@@ -93,23 +131,30 @@ type TurnInfo struct {
 }
 
 type Game struct {
-	inited        bool
-	debug         bool
-	server        Server
-	id            int
-	mode          mode
-	lobbyId       int
-	fontSource    *text.GoTextFaceSource
-	trumpSuit     *Suit
-	teams         [2]Team
-	activePlayer  int
-	touchIDs      []ebiten.TouchID
-	buttonConfirm Button
-	buttonCancel  Button
-	overlay       graphics.Shape
-	drawPile      DrawPile
-	trick         Trick
-	turnInfo      TurnInfo
+	inited          bool
+	debug           bool
+	server          Server
+	id              int
+	mode            mode
+	lobbyId         int
+	fontSource      *text.GoTextFaceSource
+	trumpSuit       *Suit
+	passCounter     int
+	teams           [2]Team
+	activePlayer    int
+	trumpDrawPlayer int
+	touchIDs        []ebiten.TouchID
+	buttonConfirm   Button
+	buttonCancel    Button
+	buttonPass      Button
+	buttonHearts    Button
+	buttonDiamonds  Button
+	buttonClubs     Button
+	buttonSpades    Button
+	overlay         graphics.Shape
+	drawPile        DrawPile
+	trick           Trick
+	turnInfo        TurnInfo
 }
 
 func (g *Game) initOverlay() {
@@ -197,16 +242,43 @@ func (g *Game) init() {
 	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
 
 	g.activePlayer = 0
+	g.trumpDrawPlayer = 0
 
-	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonConfirm = *CreateButton(g, pickUpTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
 	confirmX := screenWidth/2 - confirmWidth/2 + 80
 	g.buttonConfirm.SetLoc(confirmX, g.buttonConfirm.sprite.Y)
 
-	g.buttonCancel = *CreateButton(g, cancelTrump, buttonCancelImage, buttonCancelAlpha, buttonPressedCancelImage, buttonPressedCancelAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonCancel = *CreateButton(g, passTrump, buttonCancelImage, buttonCancelAlpha, buttonPressedCancelImage, buttonPressedCancelAlpha, 4, 0, screenHeight/2+80, 0)
 	cancelWidth := g.buttonCancel.sprite.ImageWidth
 	cancelX := screenWidth/2 - cancelWidth/2 - 80
 	g.buttonCancel.SetLoc(cancelX, g.buttonCancel.sprite.Y)
+
+	g.buttonPass = *CreateButton(g, passTrump, buttonPassImage, buttonPassAlpha, buttonPassImage, buttonPassAlpha, 5, 0, 0, 0)
+	passWidth := g.buttonPass.sprite.ImageWidth
+	passHeight := g.buttonPass.sprite.ImageHeight
+	passX := screenWidth/2 - passWidth/2
+	passY := screenHeight/2 - passHeight/2
+	g.buttonPass.SetLoc(passX, passY)
+
+	g.buttonHearts = *CreateButton(g, heartsTrump, buttonHeartsImage, buttonHeartsAlpha, buttonPressedHeartsImage, buttonPressedHeartsAlpha, 4, 0, screenHeight/2-140, 0)
+	heartsWidth := g.buttonHearts.sprite.ImageWidth
+	heartsX := screenWidth/2 - heartsWidth/2 - 140
+	g.buttonHearts.SetLoc(heartsX, g.buttonHearts.sprite.Y)
+
+	g.buttonDiamonds = *CreateButton(g, diamondsTrump, buttonDiamondsImage, buttonDiamondsAlpha, buttonPressedDiamondsImage, buttonPressedDiamondsAlpha, 4, 0, screenHeight/2-140, 0)
+	diamondsWidth := g.buttonDiamonds.sprite.ImageWidth
+	diamondsX := screenWidth/2 - diamondsWidth/2 + 140
+	g.buttonDiamonds.SetLoc(diamondsX, g.buttonDiamonds.sprite.Y)
+
+	g.buttonClubs = *CreateButton(g, clubsTrump, buttonClubsImage, buttonClubsAlpha, buttonPressedClubsImage, buttonPressedClubsAlpha, 4, 0, screenHeight/2+80, 0)
+	// clubsWidth := g.buttonClubs.sprite.ImageWidth
+	// clubsX := screenWidth/2 - clubsWidth/2 + 140
+	g.buttonClubs.SetLoc(heartsX, g.buttonClubs.sprite.Y)
+
+	g.buttonSpades = *CreateButton(g, spadesTrump, buttonSpadesImage, buttonSpadesAlpha, buttonPressedSpadesImage, buttonPressedSpadesAlpha, 4, 0, screenHeight/2+80, 0)
+	// spadesX := clubsX + 80
+	g.buttonSpades.SetLoc(diamondsX, g.buttonSpades.sprite.Y)
 
 	g.initOverlay()
 
@@ -222,6 +294,8 @@ func (g *Game) init() {
 	}
 	g.server.connected = true
 
+	g.turnInfo.inited = false
+
 	go g.server.server.Listen()
 }
 
@@ -234,7 +308,7 @@ func (g *Game) debugPrintln(msg string) {
 func (g *Game) GetPlayer(id int) *Player {
 	for i := range g.teams {
 		for j := range g.teams[i].players {
-			if g.id == g.teams[i].players[j].Id {
+			if id == g.teams[i].players[j].Id {
 				return &g.teams[i].players[j]
 			}
 		}
@@ -244,8 +318,29 @@ func (g *Game) GetPlayer(id int) *Player {
 	return nil
 }
 
+func (g *Game) GetNextPlayer(id int) *Player {
+	prevPlayerPos := g.GetPlayer(id).AbsPos
+	nextPlayerPos := (prevPlayerPos + 1) % 4
+	// FIXME: ABS POS IS INCORRECT?
+
+	for i := range g.teams {
+		for j := range g.teams[i].players {
+			if nextPlayerPos == g.teams[i].players[j].AbsPos {
+				return &g.teams[i].players[j]
+			}
+		}
+	}
+
+	fmt.Printf("ERROR: Should not be here! Called `game.GetNextPlayer(%v)` and somehow could not find the player at the adjascent position.", id)
+	return nil
+}
+
 func (g *Game) GetClient() *Player {
 	return g.GetPlayer(g.id)
+}
+
+func (g *Game) GetActivePlayer() *Player {
+	return g.GetPlayer(g.activePlayer)
 }
 
 func (g *Game) SetActiveId(id int) {
@@ -269,19 +364,26 @@ func (g *Game) ArrangeTeams() {
 	client := g.GetClient()
 	g.teams[0].Arrange(client.Id, client.AbsPos)
 	g.teams[1].Arrange(client.Id, client.AbsPos)
-	println("consider me: arranged")
 }
 
 func (g *Game) SendTurnInfo() {
-	if g.server.connected {
+	if g.server.connected && g.turnInfo.inited {
+		println("Sending turn info for player id:", g.turnInfo.turnInfo.PlayerId)
 		g.server.server.Send(connection.Message{
 			Type: "turn_info",
 			Data: g.turnInfo.turnInfo,
 		})
-		g.turnInfo.inited = false
 	} else {
 		println("turn_info not sent since no server is connected.")
 	}
+	g.turnInfo.inited = false
+}
+
+func (g *Game) PlayCard(id int, cardInd int) {
+	player := g.GetPlayer(id)
+	g.trick.playCard(player.Cards[cardInd])
+	player.Cards = slices.Delete(player.Cards, cardInd, cardInd+1)
+	player.ArrangeHand(player.Id)
 }
 
 func (g *Game) EndTurn() {
@@ -289,7 +391,7 @@ func (g *Game) EndTurn() {
 }
 
 func (g *Game) IsPickingTrump() bool {
-	return g.activePlayer == 0 && g.trumpSuit == nil
+	return g.activePlayer == g.id && g.trumpSuit == nil
 }
 
 func (g *Game) EncodeGameState() connection.GameState {
@@ -311,17 +413,19 @@ func (g *Game) EncodeGameState() connection.GameState {
 	}
 
 	return connection.GameState{
-		PlayerId:     g.id,
-		ActivePlayer: g.activePlayer,
-		TrumpSuit:    intTrumpSuit,
-		DrawPile:     encDrawPile,
-		PlayPile:     encPlayPile,
-		TeamState:    teamState,
+		PlayerId:        g.id,
+		ActivePlayer:    g.activePlayer,
+		TrumpDrawPlayer: g.trumpDrawPlayer,
+		TrumpSuit:       intTrumpSuit,
+		DrawPile:        encDrawPile,
+		PlayPile:        encPlayPile,
+		TeamState:       teamState,
 	}
 }
 
 func (g *Game) DecodeGameState(state connection.GameState) {
 	g.SetActiveId(state.ActivePlayer)
+	g.trumpDrawPlayer = state.TrumpDrawPlayer
 
 	if state.TrumpSuit < 0 {
 		g.trumpSuit = nil
@@ -340,6 +444,38 @@ func (g *Game) DecodeGameState(state connection.GameState) {
 	g.teams[Red].Decode(Red, state.TeamState[Red])
 
 	g.ArrangeTeams()
+
+	// Need to recreate the turn info data if already created
+	g.turnInfo.inited = false
+}
+
+func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
+	switch turnInfo.TurnType {
+	case connection.TrumpPass:
+		g.passCounter++
+		g.activePlayer = g.GetNextPlayer(turnInfo.PlayerId).Id
+		break
+	case connection.TrumpPick:
+		if turnInfo.TrumpPick < 0 {
+			pickUpTrump(g)
+		} else {
+			trumpSuit := Suit(turnInfo.TrumpPick)
+			g.trumpSuit = &trumpSuit
+			g.activePlayer = g.trumpDrawPlayer
+		}
+		break
+	case connection.TrumpDiscard:
+		g.GetActivePlayer().DiscardEncoded(turnInfo.TrumpDiscard)
+		g.activePlayer = g.trumpDrawPlayer
+		break
+	case connection.CardPlay:
+		activePlayer := g.GetPlayer(g.activePlayer)
+		cardPlayed := CreateCard(Suit(turnInfo.CardPlay.Suit), Number(turnInfo.CardPlay.Number), .35, 0, 0, 0, true)
+		g.PlayCard(activePlayer.Id, activePlayer.GetCardInd(cardPlayed))
+		g.activePlayer = g.GetNextPlayer(turnInfo.PlayerId).Id
+		break
+	}
+
 }
 
 func (g *Game) Update() error {
@@ -348,6 +484,7 @@ func (g *Game) Update() error {
 	}
 
 	if !g.turnInfo.inited {
+		println("Setting turn info to player id:", g.id)
 		g.turnInfo.turnInfo = connection.TurnInfo{
 			PlayerId: g.GetClient().Id,
 		}
@@ -400,8 +537,9 @@ func (g *Game) UpdateClientTurn() {
 					// TODO: Update sprite here to be blank side
 					discarded := client.Cards[i]
 					g.drawPile.discard(discarded)
-					client.Cards = slices.Delete(client.Cards, i, i+1)
-					client.ArrangeHand(client.Id)
+					if client.Discard(i) != discarded {
+						println("Failed to discard card from hand!! Should not be here.")
+					}
 
 					g.turnInfo.turnInfo.TurnType = connection.TrumpDiscard
 					g.turnInfo.turnInfo.TrumpDiscard = discarded.Encode()
@@ -416,8 +554,18 @@ func (g *Game) UpdateClientTurn() {
 		x, y := ebiten.CursorPosition()
 		mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
 
-		g.buttonConfirm.Update(x, y, mouseButtonPressed)
-		g.buttonCancel.Update(x, y, mouseButtonPressed)
+		if g.passCounter < 4 {
+			g.buttonConfirm.Update(x, y, mouseButtonPressed)
+			g.buttonCancel.Update(x, y, mouseButtonPressed)
+		} else {
+			g.buttonHearts.Update(x, y, mouseButtonPressed)
+			g.buttonDiamonds.Update(x, y, mouseButtonPressed)
+			g.buttonClubs.Update(x, y, mouseButtonPressed)
+			g.buttonSpades.Update(x, y, mouseButtonPressed)
+			if g.passCounter < 7 {
+				g.buttonPass.Update(x, y, mouseButtonPressed)
+			}
+		}
 
 	} else {
 		x, y := ebiten.CursorPosition()
@@ -427,9 +575,7 @@ func (g *Game) UpdateClientTurn() {
 			for i := len(client.Cards) - 1; i >= 0; i-- {
 				card := client.Cards[i]
 				if card.Sprite.In(x, y) {
-					g.trick.playCard(client.Cards[i])
-					client.Cards = slices.Delete(client.Cards, i, i+1)
-					client.ArrangeHand(client.Id)
+					g.PlayCard(g.id, i)
 					break
 				}
 			}
@@ -549,14 +695,88 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 		text.Draw(screen, discardText, fontFace, &txtOp)
 		g.GetClient().Draw(screen, op)
 
-	} else if g.activePlayer == 0 && g.trumpSuit == nil {
+	} else if g.trumpSuit == nil {
 		g.overlay.Draw(screen)
 
 		// **Everything on top of fade overlay start here**
 
-		g.buttonConfirm.Draw(screen, op)
-		g.buttonCancel.Draw(screen, op)
-		g.GetClient().Draw(screen, op)
+		if g.activePlayer == g.id {
+			g.GetClient().Draw(screen, op)
+
+			if g.passCounter < 4 {
+				g.buttonConfirm.Draw(screen, op)
+				g.buttonCancel.Draw(screen, op)
+			} else {
+				// Create font faces with different sizes as needed
+				fontFace := &text.GoTextFace{
+					Source: g.fontSource,
+					Size:   24,
+				}
+
+				type SuitText struct {
+					Suit    string
+					OffsetX float64
+					OffsetY float64
+				}
+				suitTexts := []SuitText{
+					{Suit: "Hearts", OffsetX: -140, OffsetY: -50},
+					{Suit: "Diamonds", OffsetX: +140, OffsetY: -50},
+					{Suit: "Clubs", OffsetX: -140, OffsetY: +60},
+					{Suit: "Spades", OffsetX: +140, OffsetY: +60},
+				}
+
+				for _, suitText := range suitTexts {
+					txtOp := text.DrawOptions{}
+					txtW, txtH := text.Measure(suitText.Suit, fontFace, 0)
+					centeredX, centeredY := screenWidth/2-txtW/2, screenHeight/2-txtH/2
+					txtOp.GeoM.Translate(centeredX+suitText.OffsetX, centeredY+suitText.OffsetY)
+					text.Draw(screen, suitText.Suit, fontFace, &txtOp)
+				}
+
+				g.buttonHearts.Draw(screen, op)
+				g.buttonDiamonds.Draw(screen, op)
+				g.buttonClubs.Draw(screen, op)
+				g.buttonSpades.Draw(screen, op)
+
+				if g.passCounter < 7 {
+					g.buttonPass.Draw(screen, op)
+				}
+			}
+
+		} else {
+			var (
+				waitingText = fmt.Sprintf("Waiting on player %v to choose...", g.activePlayer)
+				txtOp       = text.DrawOptions{}
+			)
+
+			// Create font faces with different sizes as needed
+			fontFace := &text.GoTextFace{
+				Source: g.fontSource,
+				Size:   24,
+			}
+
+			txtW, txtH := text.Measure(waitingText, fontFace, 0)
+			txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
+			text.Draw(screen, waitingText, fontFace, &txtOp)
+		}
+	} else if g.trumpSuit != nil && g.activePlayer != g.id {
+		g.overlay.Draw(screen)
+
+		// **Everything on top of fade overlay start here**
+		var (
+			waitingText = fmt.Sprintf("Player %v's turn...", g.activePlayer)
+			txtOp       = text.DrawOptions{}
+		)
+
+		// Create font faces with different sizes as needed
+		fontFace := &text.GoTextFace{
+			Source: g.fontSource,
+			Size:   24,
+		}
+
+		txtW, txtH := text.Measure(waitingText, fontFace, 0)
+		txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
+		text.Draw(screen, waitingText, fontFace, &txtOp)
 	}
 }
 
