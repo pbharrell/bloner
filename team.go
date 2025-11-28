@@ -10,7 +10,7 @@ const (
 )
 
 type Team struct {
-	tricksWon int
+	points    int
 	teamColor teamColor
 	players   [2]Player
 }
@@ -21,14 +21,14 @@ func (t *Team) Arrange(clientId int, clientPos PlayPos) {
 }
 
 func (t *Team) Decode(teamColor teamColor, teamState connection.TeamState) {
-	t.tricksWon = teamState.TricksWon
+	t.points = teamState.TricksWon
 	t.players[0].Decode(teamColor, 0, teamState.PlayerState[0])
 	t.players[1].Decode(teamColor, 1, teamState.PlayerState[1])
 }
 
 func (t *Team) Encode() connection.TeamState {
 	return connection.TeamState{
-		TricksWon: t.tricksWon,
+		TricksWon: t.points,
 		PlayerState: [2]connection.PlayerState{
 			t.players[0].Encode(), t.players[1].Encode(),
 		},

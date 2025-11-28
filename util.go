@@ -20,18 +20,22 @@ func passTrump(g *Game) {
 
 func heartsTrump(g *Game) {
 	g.SendTurnTrumpPick(int8(Hearts))
+	g.trick.clear()
 }
 
 func diamondsTrump(g *Game) {
 	g.SendTurnTrumpPick(int8(Diamonds))
+	g.trick.clear()
 }
 
 func clubsTrump(g *Game) {
 	g.SendTurnTrumpPick(int8(Clubs))
+	g.trick.clear()
 }
 
 func spadesTrump(g *Game) {
 	g.SendTurnTrumpPick(int8(Spades))
+	g.trick.clear()
 }
 
 func GetRelPos(clientAbsPos PlayPos, absPos PlayPos) PlayPos {

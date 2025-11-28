@@ -230,12 +230,12 @@ func (g *Game) init() {
 
 	g.teams[Black].teamColor = Black
 	g.teams[Red].teamColor = Red
-	g.teams[Black].tricksWon = 0
-	g.teams[Red].tricksWon = 0
-	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile /* faceDown */, false)
-	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile /* faceDown */, false)
-	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile /* faceDown */, false)
-	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile /* faceDown */, false)
+	g.teams[Black].points = 0
+	g.teams[Red].points = 0
+	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile /* faceDown */, false, 0)
+	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile /* faceDown */, false, 0)
+	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile /* faceDown */, false, 0)
+	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile /* faceDown */, false, 0)
 
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
@@ -512,6 +512,7 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 			trumpSuit := Suit(turnInfo.TrumpPick)
 			g.trumpSuit = &trumpSuit
 			g.activePlayer = g.trumpDrawPlayer
+			g.trick.clear()
 		}
 		break
 	case connection.TrumpDiscard:
@@ -578,9 +579,41 @@ func (g *Game) UpdateGameActive() {
 
 	if len(g.trick.Pile) >= 4 {
 		highestCard := GetHighestCardFromPile(g.trick.Pile, g.trick.LeadSuit, *g.trumpSuit)
-		winningTeam := g.GetTeam(g.GetPlayer(highestCard.PlayerId))
-		winningTeam.tricksWon++
+		g.GetPlayer(highestCard.PlayerId).WinTrick(g.id)
 		g.trick.clear()
+	}
+
+	outOfCards := true
+	for _, team := range g.teams {
+		for _, player := range team.players {
+			if len(player.Cards) > 0 {
+				outOfCards = false
+			}
+		}
+	}
+
+	if outOfCards {
+		team1Tricks := 0
+		team2Tricks := 0
+		for i := range g.teams {
+			for j, player := range g.teams[i].players {
+				if i == 0 {
+					team1Tricks += len(player.wonTricks)
+				} else if i == 1 {
+					team2Tricks += len(player.wonTricks)
+				}
+
+				g.teams[i].players[j].wonTricks = []*Card{}
+			}
+		}
+
+		if team1Tricks > team2Tricks {
+			g.teams[0].points++
+		} else if team1Tricks < team2Tricks {
+			g.teams[1].points++
+		}
+
+		// FIXME: REDEAL EVERYBODY CARDS HERE
 	}
 }
 
@@ -719,6 +752,25 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 	if !g.IsPickingTrump() {
 		g.GetClient().Draw(screen, op)
 	}
+
+	teamScoreText := "Team %v score: %v"
+	// Create font faces with different sizes as needed
+	fontFace := &text.GoTextFace{
+		Source: g.fontSource,
+		Size:   24,
+	}
+
+	team1ScoreText := fmt.Sprintf(teamScoreText, 1, g.teams[0].points)
+	txtOp := text.DrawOptions{}
+	txtW, txtH := text.Measure(team1ScoreText, fontFace, 0)
+	txtOp.GeoM.Translate(screenWidth/2-txtW-30, screenHeight/2-txtH/2-110)
+	text.Draw(screen, team1ScoreText, fontFace, &txtOp)
+
+	team2ScoreText := fmt.Sprintf(teamScoreText, 2, g.teams[1].points)
+	txtOp = text.DrawOptions{}
+	txtW, txtH = text.Measure(team2ScoreText, fontFace, 0)
+	txtOp.GeoM.Translate(screenWidth/2+30, screenHeight/2-txtH/2-110)
+	text.Draw(screen, team2ScoreText, fontFace, &txtOp)
 
 	g.drawPile.Draw(screen, op)
 	g.trick.Draw(screen, op)

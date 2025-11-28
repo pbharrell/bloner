@@ -22,10 +22,11 @@ var (
 )
 
 type PosInfo struct {
-	cardHeight      int
-	SideLen         int
-	fullPercentSpan int
-	perpAxisPos     int
+	cardHeight        int
+	SideLen           int
+	fullPercentSpan   int
+	perpAxisHandPos   int
+	perpAxisTricksPos int
 }
 
 type Player struct {
@@ -34,47 +35,53 @@ type Player struct {
 	AbsPos    PlayPos
 	RelPos    PlayPos
 	PosInfo   PosInfo
-	tricksWon int
+	wonTricks []*Card
 }
 
 func GetPosInfoFromPos(relPos PlayPos, cardHeight int) PosInfo {
 	var (
-		sideLen         int
-		percentHandSpan int
-		perpAxisPos     int
+		sideLen           int
+		percentHandSpan   int
+		perpAxisHandPos   int
+		perpAxisTricksPos int
 	)
 
 	switch relPos {
 	case Bottom:
 		sideLen = screenWidth
 		percentHandSpan = 60
-		perpAxisPos = screenHeight - cardHeight - 20
+		perpAxisHandPos = screenHeight - cardHeight - 20
+		perpAxisTricksPos = screenHeight - cardHeight - 20
 
 	case Left:
 		sideLen = screenHeight
 		percentHandSpan = 20
-		perpAxisPos = 20
+		perpAxisHandPos = 20
+		perpAxisTricksPos = 20
 
 	case Top:
 		sideLen = screenWidth
 		percentHandSpan = 20
-		perpAxisPos = 20
+		perpAxisHandPos = 20
+		perpAxisTricksPos = 20
 
 	case Right:
 		sideLen = screenHeight
 		percentHandSpan = 20
-		perpAxisPos = screenWidth - cardHeight - 20
+		perpAxisHandPos = screenWidth - cardHeight - 20
+		perpAxisTricksPos = screenWidth - cardHeight - 20
 	}
 
 	return PosInfo{
-		cardHeight:      cardHeight,
-		SideLen:         sideLen,
-		fullPercentSpan: percentHandSpan,
-		perpAxisPos:     perpAxisPos,
+		cardHeight:        cardHeight,
+		SideLen:           sideLen,
+		fullPercentSpan:   percentHandSpan,
+		perpAxisHandPos:   perpAxisHandPos,
+		perpAxisTricksPos: perpAxisTricksPos,
 	}
 }
 
-func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale float64, drawPile *DrawPile, faceDown bool) Player {
+func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale float64, drawPile *DrawPile, faceDown bool, tricksWon uint8) Player {
 	if handSize == 0 {
 		return Player{}
 	}
@@ -89,16 +96,23 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 		}
 	}
 
+	tricks := make([]*Card, tricksWon)
+	for i := range tricks {
+		// Card suit and number are placholders
+		tricks[i] = CreateCard(Spades, Ace, id, .35, 0, 0, 0 /* faceDown */, true)
+	}
+
 	player := Player{
-		Id:      id,
-		Cards:   cards,
-		AbsPos:  relPos,
-		RelPos:  relPos,
-		PosInfo: GetPosInfoFromPos(relPos, cards[0].Sprite.ImageHeight),
+		Id:        id,
+		Cards:     cards,
+		AbsPos:    relPos,
+		RelPos:    relPos,
+		PosInfo:   GetPosInfoFromPos(relPos, cards[0].Sprite.ImageHeight),
+		wonTricks: tricks,
 	}
 
 	// Calculate and set the card position
-	player.Arrange(0, Bottom)
+	player.Arrange(0, relPos)
 
 	return player
 }
@@ -107,6 +121,7 @@ func (p *Player) Arrange(clientId int, clientPos PlayPos) {
 	p.RelPos = PlayPos((uint8(p.AbsPos) - uint8(clientPos)) % 4)
 	p.PosInfo = GetPosInfoFromPos(p.RelPos, p.PosInfo.cardHeight)
 	p.ArrangeHand(clientId)
+	p.ArrangeTricks()
 }
 
 func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connection.PlayerState) {
@@ -167,6 +182,11 @@ func (p *Player) DiscardEncoded(card connection.Card, clientId int) *Card {
 	return nil
 }
 
+func (p *Player) WinTrick(clientId int) {
+	p.wonTricks = append(p.wonTricks, CreateCard(Spades, Ace, p.Id, .35, 0, 0, 0, true))
+	p.ArrangeTricks()
+}
+
 func (p *Player) Update() {
 	for i := range p.Cards {
 		p.Cards[i].UpdateSprite()
@@ -177,13 +197,17 @@ func (p *Player) Draw(screen *ebiten.Image, op ebiten.DrawImageOptions) {
 	for i := range p.Cards {
 		p.Cards[i].Draw(screen, op)
 	}
+
+	for j := range p.wonTricks {
+		p.wonTricks[j].Draw(screen, op)
+	}
 }
 
 func (p *Player) ArrangeHand(clientId int) {
 	cards := p.Cards
 	sideLen := p.PosInfo.SideLen
 
-	// Assume that all the cards are of the same width
+	// // Assume that all the cards are of the same width
 	numCards := len(cards)
 	if numCards == 0 {
 		return
@@ -211,21 +235,53 @@ func (p *Player) ArrangeHand(clientId int) {
 		switch p.RelPos {
 		case Bottom:
 			cards[cardInd].Sprite.X = playAxisPos
-			cards[cardInd].Sprite.Y = p.PosInfo.perpAxisPos
+			cards[cardInd].Sprite.Y = p.PosInfo.perpAxisHandPos
 			cards[cardInd].Sprite.Angle = 0
 		case Left:
-			cards[cardInd].Sprite.X = p.PosInfo.perpAxisPos
+			cards[cardInd].Sprite.X = p.PosInfo.perpAxisHandPos
 			cards[cardInd].Sprite.Y = playAxisPos
 			cards[cardInd].Sprite.Angle = 90
 		case Top:
 			cards[cardInd].Sprite.X = playAxisPos
-			cards[cardInd].Sprite.Y = p.PosInfo.perpAxisPos
+			cards[cardInd].Sprite.Y = p.PosInfo.perpAxisHandPos
 			cards[cardInd].Sprite.Angle = 180
 		case Right:
-			cards[cardInd].Sprite.X = p.PosInfo.perpAxisPos
+			cards[cardInd].Sprite.X = p.PosInfo.perpAxisHandPos
 			cards[cardInd].Sprite.Y = playAxisPos
 			cards[cardInd].Sprite.Angle = 270
 		}
 
+	}
+}
+
+func (p *Player) ArrangeTricks() {
+	tricks := p.wonTricks
+	if len(tricks) == 0 {
+		return
+	}
+
+	trickWidth := tricks[0].Sprite.ImageWidth
+	for trickInd := range tricks {
+		tricks[trickInd].FaceDown = true
+
+		trickAxisOffset := trickInd * (trickWidth - 40)
+		switch p.RelPos {
+		case Bottom:
+			tricks[trickInd].Sprite.X = 20 + trickAxisOffset
+			tricks[trickInd].Sprite.Y = p.PosInfo.perpAxisTricksPos
+			tricks[trickInd].Sprite.Angle = 0
+		case Left:
+			tricks[trickInd].Sprite.X = p.PosInfo.perpAxisTricksPos
+			tricks[trickInd].Sprite.Y = 20 + trickAxisOffset
+			tricks[trickInd].Sprite.Angle = 90
+		case Top:
+			tricks[trickInd].Sprite.X = screenWidth - trickWidth - 20 - trickAxisOffset
+			tricks[trickInd].Sprite.Y = p.PosInfo.perpAxisTricksPos
+			tricks[trickInd].Sprite.Angle = 180
+		case Right:
+			tricks[trickInd].Sprite.X = p.PosInfo.perpAxisTricksPos
+			tricks[trickInd].Sprite.Y = screenHeight - p.PosInfo.cardHeight - 20 - trickAxisOffset
+			tricks[trickInd].Sprite.Angle = 270
+		}
 	}
 }
