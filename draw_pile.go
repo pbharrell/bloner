@@ -38,7 +38,7 @@ func (p *DrawPile) drawCard(scale float64, x int, y int, angle int, faceDown boo
 	suit := Suit(num / 6)
 	number := Number(num % 6)
 
-	card := CreateCard(suit, number, scale, x, y, angle, faceDown)
+	card := CreateCard(suit, number, -1, scale, x, y, angle, faceDown)
 
 	// Drop the last card off the pile
 	p.Pile = p.Pile[:len(p.Pile)-1]

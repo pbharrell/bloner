@@ -244,7 +244,7 @@ func (g *Game) init() {
 	g.activePlayer = 0
 	g.trumpDrawPlayer = 0
 
-	g.buttonConfirm = *CreateButton(g, pickUpTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
 	confirmX := screenWidth/2 - confirmWidth/2 + 80
 	g.buttonConfirm.SetLoc(confirmX, g.buttonConfirm.sprite.Y)
@@ -272,12 +272,9 @@ func (g *Game) init() {
 	g.buttonDiamonds.SetLoc(diamondsX, g.buttonDiamonds.sprite.Y)
 
 	g.buttonClubs = *CreateButton(g, clubsTrump, buttonClubsImage, buttonClubsAlpha, buttonPressedClubsImage, buttonPressedClubsAlpha, 4, 0, screenHeight/2+80, 0)
-	// clubsWidth := g.buttonClubs.sprite.ImageWidth
-	// clubsX := screenWidth/2 - clubsWidth/2 + 140
 	g.buttonClubs.SetLoc(heartsX, g.buttonClubs.sprite.Y)
 
 	g.buttonSpades = *CreateButton(g, spadesTrump, buttonSpadesImage, buttonSpadesAlpha, buttonPressedSpadesImage, buttonPressedSpadesAlpha, 4, 0, screenHeight/2+80, 0)
-	// spadesX := clubsX + 80
 	g.buttonSpades.SetLoc(diamondsX, g.buttonSpades.sprite.Y)
 
 	g.initOverlay()
@@ -321,7 +318,6 @@ func (g *Game) GetPlayer(id int) *Player {
 func (g *Game) GetNextPlayer(id int) *Player {
 	prevPlayerPos := g.GetPlayer(id).AbsPos
 	nextPlayerPos := (prevPlayerPos + 1) % 4
-	// FIXME: ABS POS IS INCORRECT?
 
 	for i := range g.teams {
 		for j := range g.teams[i].players {
@@ -351,10 +347,21 @@ func (g *Game) SetActivePlayer(player *Player) {
 	g.activePlayer = player.Id
 }
 
+func (g *Game) GetTeam(player *Player) *Team {
+	for i := range g.teams {
+		for j := range g.teams[i].players {
+			if &g.teams[i].players[j] == player {
+				return &g.teams[i]
+			}
+		}
+	}
+	return nil
+}
+
 func DecodeCardPile(encPile []connection.Card, scale float64, faceDown bool) []*Card {
 	pile := make([]*Card, len(encPile))
 	for i, encCard := range encPile {
-		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), scale, 0, 0, 0, faceDown))
+		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), -1, scale, 0, 0, 0, faceDown))
 	}
 
 	return pile
@@ -379,11 +386,51 @@ func (g *Game) SendTurnInfo() {
 	g.turnInfo.inited = false
 }
 
-func (g *Game) PlayCard(id int, cardInd int) {
-	player := g.GetPlayer(id)
-	g.trick.playCard(player.Cards[cardInd])
+func (g *Game) SendTurnCardPlay(card *Card) {
+	g.turnInfo.turnInfo.TurnType = connection.CardPlay
+	g.turnInfo.turnInfo.CardPlay = card.Encode()
+	g.SendTurnInfo()
+	g.EndTurn()
+}
+
+func (g *Game) SendTurnTrumpDiscard(card *Card) {
+	g.turnInfo.turnInfo.TurnType = connection.TrumpDiscard
+	g.turnInfo.turnInfo.TrumpDiscard = card.Encode()
+	g.SendTurnInfo()
+	g.EndTurn()
+}
+
+func (g *Game) SendTurnTrumpPick(suit int8) {
+	g.turnInfo.turnInfo.TurnType = connection.TrumpPick
+	g.turnInfo.turnInfo.TrumpPick = suit
+	g.SendTurnInfo()
+}
+
+func (g *Game) SendTurnTrumpPass() {
+	g.turnInfo.turnInfo.TurnType = connection.TrumpPass
+	g.SendTurnInfo()
+	g.EndTurn()
+}
+
+func (g *Game) PickUpTrump(player *Player) {
+	topCard := g.trick.Pile[len(g.trick.Pile)-1]
+	g.trick.Pile = g.trick.Pile[:len(g.trick.Pile)-1]
+	g.trumpSuit = &topCard.Suit
+
+	player.Cards = append(player.Cards, topCard)
+	player.ArrangeHand(g.GetClient().Id)
+}
+
+func (g *Game) PlayCard(playerId int, cardInd int) {
+	player := g.GetPlayer(playerId)
+	playedCard := player.Cards[cardInd]
+
+	if len(g.trick.Pile) == 0 {
+		g.trick.LeadSuit = playedCard.Suit
+	}
+	g.trick.playCard(playedCard)
 	player.Cards = slices.Delete(player.Cards, cardInd, cardInd+1)
-	player.ArrangeHand(player.Id)
+	player.ArrangeHand(g.GetClient().Id)
 }
 
 func (g *Game) EndTurn() {
@@ -402,7 +449,7 @@ func (g *Game) EncodeGameState() connection.GameState {
 
 	encDrawPile := make([]connection.Card, len(g.drawPile.Pile))
 	for i, cardInt := range g.drawPile.Pile {
-		encDrawPile[i] = CreateCard(Suit(cardInt/6), Number(cardInt%6), 0, 0, 0, 0 /*faceDown*/, true).Encode()
+		encDrawPile[i] = CreateCard(Suit(cardInt/6), Number(cardInt%6), -1, 0, 0, 0, 0 /*faceDown*/, true).Encode()
 	}
 
 	encPlayPile := g.trick.Encode()
@@ -457,7 +504,10 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 		break
 	case connection.TrumpPick:
 		if turnInfo.TrumpPick < 0 {
-			pickUpTrump(g)
+			// Don't want to repeat picking up trump, since client already did it
+			if turnInfo.PlayerId != g.id {
+				g.PickUpTrump(g.GetPlayer(turnInfo.PlayerId))
+			}
 		} else {
 			trumpSuit := Suit(turnInfo.TrumpPick)
 			g.trumpSuit = &trumpSuit
@@ -465,14 +515,16 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 		}
 		break
 	case connection.TrumpDiscard:
-		g.GetActivePlayer().DiscardEncoded(turnInfo.TrumpDiscard)
+		g.GetPlayer(turnInfo.PlayerId).DiscardEncoded(turnInfo.TrumpDiscard, g.id)
 		g.activePlayer = g.trumpDrawPlayer
 		break
 	case connection.CardPlay:
-		activePlayer := g.GetPlayer(g.activePlayer)
-		cardPlayed := CreateCard(Suit(turnInfo.CardPlay.Suit), Number(turnInfo.CardPlay.Number), .35, 0, 0, 0, true)
-		g.PlayCard(activePlayer.Id, activePlayer.GetCardInd(cardPlayed))
-		g.activePlayer = g.GetNextPlayer(turnInfo.PlayerId).Id
+		if turnInfo.PlayerId != g.id {
+			turnPlayer := g.GetPlayer(turnInfo.PlayerId)
+			cardPlayed := CreateCard(Suit(turnInfo.CardPlay.Suit), Number(turnInfo.CardPlay.Number), turnInfo.PlayerId, .35, 0, 0, 0, true)
+			g.PlayCard(turnPlayer.Id, turnPlayer.GetCardInd(cardPlayed))
+			g.activePlayer = g.GetNextPlayer(turnInfo.PlayerId).Id
+		}
 		break
 	}
 
@@ -486,7 +538,7 @@ func (g *Game) Update() error {
 	if !g.turnInfo.inited {
 		println("Setting turn info to player id:", g.id)
 		g.turnInfo.turnInfo = connection.TurnInfo{
-			PlayerId: g.GetClient().Id,
+			PlayerId: g.id,
 		}
 		g.turnInfo.inited = true
 	}
@@ -523,6 +575,13 @@ func (g *Game) UpdateGameActive() {
 	if g.activePlayer == client.Id {
 		g.UpdateClientTurn()
 	}
+
+	if len(g.trick.Pile) >= 4 {
+		highestCard := GetHighestCardFromPile(g.trick.Pile, g.trick.LeadSuit, *g.trumpSuit)
+		winningTeam := g.GetTeam(g.GetPlayer(highestCard.PlayerId))
+		winningTeam.tricksWon++
+		g.trick.clear()
+	}
 }
 
 func (g *Game) UpdateClientTurn() {
@@ -534,17 +593,13 @@ func (g *Game) UpdateClientTurn() {
 			for i := len(client.Cards) - 1; i >= 0; i-- {
 				card := client.Cards[i]
 				if card.Sprite.In(x, y) {
-					// TODO: Update sprite here to be blank side
 					discarded := client.Cards[i]
 					g.drawPile.discard(discarded)
-					if client.Discard(i) != discarded {
+					if client.Discard(i, g.id) != discarded {
 						println("Failed to discard card from hand!! Should not be here.")
 					}
 
-					g.turnInfo.turnInfo.TurnType = connection.TrumpDiscard
-					g.turnInfo.turnInfo.TrumpDiscard = discarded.Encode()
-					g.SendTurnInfo()
-					g.EndTurn()
+					g.SendTurnTrumpDiscard(discarded)
 					break
 				}
 			}
@@ -576,15 +631,17 @@ func (g *Game) UpdateClientTurn() {
 				card := client.Cards[i]
 				if card.Sprite.In(x, y) {
 					g.PlayCard(g.id, i)
+					g.SendTurnCardPlay(card)
 					break
 				}
 			}
 
 			// Only want to add a card to hand from draw pile if debugging
-			if g.debug {
+			if false || g.debug {
 				if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
 					card := g.drawPile.drawCard(.35, 0, 0, 0 /* faceDown */, false)
 					if card != nil {
+						card.PlayerId = client.Id
 						client.Cards = append(client.Cards, card)
 						client.ArrangeHand(client.Id)
 					}
@@ -668,7 +725,7 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 
 	for _, team := range g.teams {
 		for _, player := range team.players {
-			if player.Id != g.GetClient().Id {
+			if player.Id != g.id {
 				// Simply draw the other players (non-client)
 				player.Draw(screen, op)
 			}
@@ -778,6 +835,7 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 		txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
 		text.Draw(screen, waitingText, fontFace, &txtOp)
 	}
+
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {

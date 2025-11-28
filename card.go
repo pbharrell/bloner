@@ -28,6 +28,7 @@ const (
 	King
 	Ace
 	AltBauer
+	PrimBauer
 )
 
 var (
@@ -40,22 +41,14 @@ var (
 		Ace:   5,
 	}
 
-	TrumpColorVal = map[Number]uint8{
-		Nine:  0,
-		Ten:   1,
-		Queen: 2,
-		King:  3,
-		Ace:   4,
-	}
-
 	TrumpVal = map[Number]uint8{
-		Nine:     0,
-		Ten:      1,
-		Queen:    2,
-		King:     3,
-		Ace:      4,
-		AltBauer: 5,
-		Jack:     6,
+		Nine:      0,
+		Ten:       1,
+		Queen:     2,
+		King:      3,
+		Ace:       4,
+		AltBauer:  5,
+		PrimBauer: 6,
 	}
 )
 
@@ -63,6 +56,7 @@ type Card struct {
 	Sprite   graphics.Sprite
 	Suit     Suit
 	Number   Number
+	PlayerId int
 	FaceDown bool
 }
 
@@ -151,7 +145,7 @@ func initCardImages() {
 	blankCardImage, blankCardAlphaImage = graphics.LoadImageFromFile(blankImageFilename)
 }
 
-func CreateCard(suit Suit, number Number, scale float64, x int, y int, angle int, faceDown bool) *Card {
+func CreateCard(suit Suit, number Number, playerId int, scale float64, x int, y int, angle int, faceDown bool) *Card {
 	if len(cardImages) < 4 || len(cardImages[0]) < 6 {
 		panic("`cardImages` of unexpected size! Please call `InitCardImages()` first!")
 	}

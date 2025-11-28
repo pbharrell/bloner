@@ -7,10 +7,11 @@ import (
 )
 
 type Trick struct {
-	Pile   []*Card
-	Sprite graphics.Sprite
-	X      int
-	Y      int
+	Pile     []*Card
+	LeadSuit Suit
+	Sprite   graphics.Sprite
+	X        int
+	Y        int
 }
 
 func (t *Trick) SyncSprite() {
@@ -34,6 +35,9 @@ func (t *Trick) Encode() []connection.Card {
 }
 
 func (t *Trick) playCard(card *Card) {
+	card.Sprite.Angle = t.Sprite.Angle
+	card.FaceDown = false
+	card.UpdateSprite()
 	t.Pile = append(t.Pile, card)
 	t.SyncSprite()
 }

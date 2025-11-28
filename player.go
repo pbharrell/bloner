@@ -83,8 +83,9 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 	for i := range cards {
 		if drawPile != nil {
 			cards[i] = drawPile.drawCard(scale, 0, 0, 0, faceDown)
+			cards[i].PlayerId = id
 		} else {
-			cards[i] = CreateCard(Spades, Ace, .35, 0, 0, 0, faceDown)
+			cards[i] = CreateCard(Spades, Ace, id, .35, 0, 0, 0, faceDown)
 		}
 	}
 
@@ -133,7 +134,9 @@ func (p *Player) GetTeam() teamColor {
 }
 
 func (p *Player) GetCardInd(card *Card) int {
+	println("Searching for card suit:", card.Suit, "card number:", card.Number)
 	for i, c := range p.Cards {
+		println("Iterating through card suit:", c.Suit, "card number:", c.Number)
 		if c.Suit == card.Suit && c.Number == card.Number {
 			return i
 		}
@@ -143,21 +146,21 @@ func (p *Player) GetCardInd(card *Card) int {
 	return -1
 }
 
-func (p *Player) Discard(card int) *Card {
+func (p *Player) Discard(card int, clientId int) *Card {
 	if card >= len(p.Cards) {
 		return nil
 	}
 
 	discarded := p.Cards[card]
 	p.Cards = slices.Delete(p.Cards, card, card+1)
-	p.ArrangeHand(p.Id)
+	p.ArrangeHand(clientId)
 	return discarded
 }
 
-func (p *Player) DiscardEncoded(card connection.Card) *Card {
+func (p *Player) DiscardEncoded(card connection.Card, clientId int) *Card {
 	for i, c := range p.Cards {
 		if c.Suit == Suit(card.Suit) && c.Number == Number(card.Number) {
-			return p.Discard(i)
+			return p.Discard(i, clientId)
 		}
 	}
 
