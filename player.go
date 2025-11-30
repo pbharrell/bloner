@@ -86,16 +86,6 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 		return Player{}
 	}
 
-	cards := make([]*Card, handSize)
-	for i := range cards {
-		if drawPile != nil {
-			cards[i] = drawPile.drawCard(scale, 0, 0, 0, faceDown)
-			cards[i].PlayerId = id
-		} else {
-			cards[i] = CreateCard(Spades, Ace, id, .35, 0, 0, 0, faceDown)
-		}
-	}
-
 	tricks := make([]*Card, tricksWon)
 	for i := range tricks {
 		// Card suit and number are placholders
@@ -104,17 +94,44 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 
 	player := Player{
 		Id:        id,
-		Cards:     cards,
 		AbsPos:    relPos,
 		RelPos:    relPos,
-		PosInfo:   GetPosInfoFromPos(relPos, cards[0].Sprite.ImageHeight),
 		wonTricks: tricks,
 	}
+
+	player.DealHand(scale, drawPile, handSize, faceDown)
+
+	var imageHeight int
+	if len(player.Cards) > 0 {
+		imageHeight = player.Cards[0].Sprite.ImageHeight
+	} else {
+		// No cards, the best we can do is use a random image
+		imageHeight = CreateCard(Spades, Ace, 0, scale, 0, 0, 0, false).Sprite.ImageWidth
+	}
+
+	player.PosInfo = GetPosInfoFromPos(player.RelPos, imageHeight)
 
 	// Calculate and set the card position
 	player.Arrange(0, relPos)
 
 	return player
+}
+
+func (p *Player) DealHand(scale float64, drawPile *DrawPile, handSize int, faceDown bool) {
+	p.Cards = make([]*Card, handSize)
+	for i := range p.Cards {
+		if drawPile != nil {
+			p.Cards[i] = drawPile.drawCard(scale, 0, 0, 0, faceDown)
+			if p.Cards[i] == nil {
+				println("Drew card but somehow wound up with nil")
+			} else {
+				println("Settings drawn card id to:", p.Id)
+				p.Cards[i].PlayerId = p.Id
+			}
+		} else {
+			p.Cards[i] = CreateCard(Spades, Ace, p.Id, .35, 0, 0, 0, faceDown)
+		}
+	}
 }
 
 func (p *Player) Arrange(clientId int, clientPos PlayPos) {
@@ -127,7 +144,7 @@ func (p *Player) Arrange(clientId int, clientPos PlayPos) {
 func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connection.PlayerState) {
 	// Face down value should be overridden by `ArrangeHand` later
 	p.Id = playerState.PlayerId
-	p.Cards = DecodeCardPile(playerState.Cards, .35 /*faceDown*/, true)
+	p.Cards = DecodeCardPile(playerState.Cards, playerState.PlayerId, .35 /*faceDown*/, true)
 	p.AbsPos = PlayPos(uint8(teamColor) + playerNum*2)
 }
 
@@ -149,9 +166,7 @@ func (p *Player) GetTeam() teamColor {
 }
 
 func (p *Player) GetCardInd(card *Card) int {
-	println("Searching for card suit:", card.Suit, "card number:", card.Number)
 	for i, c := range p.Cards {
-		println("Iterating through card suit:", c.Suit, "card number:", c.Number)
 		if c.Suit == card.Suit && c.Number == card.Number {
 			return i
 		}

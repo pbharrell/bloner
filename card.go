@@ -152,6 +152,7 @@ func CreateCard(suit Suit, number Number, playerId int, scale float64, x int, y 
 
 	c := &Card{
 		Sprite:   *graphics.CreateSprite(cardImages[suit][number], cardAlphaImages[suit][number], scale, x, y, angle, 0, 0, 0),
+		PlayerId: playerId,
 		Suit:     suit,
 		Number:   number,
 		FaceDown: faceDown,

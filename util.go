@@ -43,10 +43,12 @@ func GetRelPos(clientAbsPos PlayPos, absPos PlayPos) PlayPos {
 }
 
 func GetHighestCardFromPile(cards []*Card, lead Suit, trump Suit) *Card {
+	println("Trump suit:", SuitToString(trump))
 	var highestCard *Card = nil
 	for _, card := range cards {
 		if highestCard == nil || GetHighestCard(highestCard, card, lead, trump) != highestCard {
 			highestCard = card
+			println("New highest card unlocked:", SuitToString(highestCard.Suit), NumberToString(highestCard.Number))
 		}
 	}
 
@@ -54,10 +56,7 @@ func GetHighestCardFromPile(cards []*Card, lead Suit, trump Suit) *Card {
 }
 
 func GetHighestCard(card1 *Card, card2 *Card, lead Suit, trump Suit) *Card {
-	// Correct for alt bauer suit
-	// if card1.Suit == trump {
-	// } if card2.Suit == trump {
-	// }
+
 	type compCard struct {
 		correctedSuit   Suit
 		correctedNumber Number
@@ -97,6 +96,9 @@ func GetHighestCard(card1 *Card, card2 *Card, lead Suit, trump Suit) *Card {
 
 	compCard1 := getCompCard(card1)
 	compCard2 := getCompCard(card2)
+
+	println("Comparing cards card1:", SuitToString(card1.Suit), NumberToString(card1.Number), "from player:", card1.PlayerId)
+	println("Comparing cards card2:", SuitToString(card2.Suit), NumberToString(card2.Number), "from player:", card2.PlayerId)
 
 	if compCard1.correctedSuit != compCard2.correctedSuit {
 		if compCard1.correctedSuit == trump {

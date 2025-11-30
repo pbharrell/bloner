@@ -358,19 +358,55 @@ func (g *Game) GetTeam(player *Player) *Team {
 	return nil
 }
 
-func DecodeCardPile(encPile []connection.Card, scale float64, faceDown bool) []*Card {
+func DecodeCardPile(encPile []connection.Card, playerId int, scale float64, faceDown bool) []*Card {
 	pile := make([]*Card, len(encPile))
 	for i, encCard := range encPile {
-		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), -1, scale, 0, 0, 0, faceDown))
+		pile[i] = (CreateCard(Suit(encCard.Suit), Number(encCard.Number), playerId, scale, 0, 0, 0, faceDown))
 	}
 
 	return pile
 }
 
+func (g *Game) DealCards() {
+	g.trick.clear()
+
+	g.drawPile.shuffleDrawPile()
+
+	for i := range g.teams {
+		for j := range g.teams[i].players {
+			if len(g.teams[i].players[j].Cards) <= 0 {
+				faceDown := g.id != g.teams[i].players[j].Id
+				g.teams[i].players[j].DealHand(.35, &g.drawPile, 5, faceDown)
+			}
+		}
+	}
+	g.trumpSuit = nil
+	g.passCounter = 0
+
+	g.ArrangeTeams()
+}
+
 func (g *Game) ArrangeTeams() {
 	client := g.GetClient()
-	g.teams[0].Arrange(client.Id, client.AbsPos)
-	g.teams[1].Arrange(client.Id, client.AbsPos)
+	g.teams[Black].Arrange(client.Id, client.AbsPos)
+	g.teams[Red].Arrange(client.Id, client.AbsPos)
+}
+
+func (g *Game) SendStateResponse() {
+	var gameState connection.StateResponse
+
+	gameState = g.EncodeGameState()
+	fmt.Printf("%v", gameState)
+	if g.server.connected {
+		g.server.server.Send(connection.Message{
+			Type: "state_res",
+			Data: gameState,
+		})
+	} else {
+		println("state_res not sent since no server is connected")
+	}
+
+	g.debugPrintln("Handled state request message!")
 }
 
 func (g *Game) SendTurnInfo() {
@@ -414,6 +450,7 @@ func (g *Game) SendTurnTrumpPass() {
 
 func (g *Game) PickUpTrump(player *Player) {
 	topCard := g.trick.Pile[len(g.trick.Pile)-1]
+	topCard.PlayerId = player.Id
 	g.trick.Pile = g.trick.Pile[:len(g.trick.Pile)-1]
 	g.trumpSuit = &topCard.Suit
 
@@ -429,6 +466,7 @@ func (g *Game) PlayCard(playerId int, cardInd int) {
 		g.trick.LeadSuit = playedCard.Suit
 	}
 	g.trick.playCard(playedCard)
+	println("player", playerId, "just played card", SuitToString(playedCard.Suit), "of", NumberToString(playedCard.Number), "owned by", playedCard.PlayerId)
 	player.Cards = slices.Delete(player.Cards, cardInd, cardInd+1)
 	player.ArrangeHand(g.GetClient().Id)
 }
@@ -579,6 +617,8 @@ func (g *Game) UpdateGameActive() {
 
 	if len(g.trick.Pile) >= 4 {
 		highestCard := GetHighestCardFromPile(g.trick.Pile, g.trick.LeadSuit, *g.trumpSuit)
+		println("Highest card returned from pile:", SuitToString(highestCard.Suit), NumberToString(highestCard.Number))
+		println("Highest card player id:", highestCard.PlayerId)
 		g.GetPlayer(highestCard.PlayerId).WinTrick(g.id)
 		g.trick.clear()
 	}
@@ -593,27 +633,43 @@ func (g *Game) UpdateGameActive() {
 	}
 
 	if outOfCards {
-		team1Tricks := 0
-		team2Tricks := 0
+		teamBlackTricks := 0
+		teamRedTricks := 0
 		for i := range g.teams {
 			for j, player := range g.teams[i].players {
 				if i == 0 {
-					team1Tricks += len(player.wonTricks)
+					teamBlackTricks += len(player.wonTricks)
 				} else if i == 1 {
-					team2Tricks += len(player.wonTricks)
+					teamRedTricks += len(player.wonTricks)
 				}
 
 				g.teams[i].players[j].wonTricks = []*Card{}
 			}
 		}
 
-		if team1Tricks > team2Tricks {
-			g.teams[0].points++
-		} else if team1Tricks < team2Tricks {
-			g.teams[1].points++
+		if teamBlackTricks > teamRedTricks {
+			if teamBlackTricks == 5 {
+				g.teams[Black].points += 2
+			} else {
+				g.teams[Black].points++
+			}
+		} else if teamBlackTricks < teamRedTricks {
+			if teamRedTricks == 5 {
+				g.teams[Red].points += 2
+			} else {
+				g.teams[Red].points++
+			}
 		}
 
-		// FIXME: REDEAL EVERYBODY CARDS HERE
+		g.DealCards()
+
+		g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
+		g.trumpDrawPlayer = (g.trumpDrawPlayer + 1) % 4
+		g.activePlayer += g.trumpDrawPlayer
+
+		if g.activePlayer == g.id {
+			g.SendStateResponse()
+		}
 	}
 }
 
@@ -760,13 +816,13 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 		Size:   24,
 	}
 
-	team1ScoreText := fmt.Sprintf(teamScoreText, 1, g.teams[0].points)
+	team1ScoreText := fmt.Sprintf(teamScoreText, 1, g.teams[Black].points)
 	txtOp := text.DrawOptions{}
 	txtW, txtH := text.Measure(team1ScoreText, fontFace, 0)
 	txtOp.GeoM.Translate(screenWidth/2-txtW-30, screenHeight/2-txtH/2-110)
 	text.Draw(screen, team1ScoreText, fontFace, &txtOp)
 
-	team2ScoreText := fmt.Sprintf(teamScoreText, 2, g.teams[1].points)
+	team2ScoreText := fmt.Sprintf(teamScoreText, 2, g.teams[Red].points)
 	txtOp = text.DrawOptions{}
 	txtW, txtH = text.Measure(team2ScoreText, fontFace, 0)
 	txtOp.GeoM.Translate(screenWidth/2+30, screenHeight/2-txtH/2-110)
