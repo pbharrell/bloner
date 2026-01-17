@@ -2,6 +2,7 @@ package graphics
 
 import (
 	"bytes"
+	"embed"
 	"image"
 	"image/color"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 const (
@@ -30,24 +32,27 @@ type Sprite struct {
 	Visible     bool
 }
 
-func LoadImageFromFile(path string) (*ebiten.Image, *image.Alpha) {
+func LoadImageFromFile(content *embed.FS, path string) (*ebiten.Image, *image.Alpha) {
 	var (
+		img       image.Image
 		fileImage *ebiten.Image
 		fileAlpha *image.Alpha
 		err       error
 	)
 
-	reader, err := os.Open(path)
+	fileImage, img, err = ebitenutil.NewImageFromFileSystem(content, path)
+	// data, err := content.ReadFile(path)
+	// // reader, err := os.Open(path)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// // defer reader.Close()
+	//
+	// img, _, err := image.Decode(strings.NewReader(data))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer reader.Close()
-
-	img, _, err := image.Decode(reader)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fileImage = ebiten.NewImageFromImage(img)
+	// fileImage = ebiten.NewImageFromImage(img)
 
 	b := img.Bounds()
 	fileAlpha = image.NewAlpha(b)

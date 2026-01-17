@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
 	"image"
 	"image/color"
@@ -12,8 +13,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 
@@ -58,8 +57,8 @@ var (
 	buttonPressedSpadesImage *ebiten.Image
 	buttonPressedSpadesAlpha *image.Alpha
 
-	ebitenImage *ebiten.Image
-	cardImage   *ebiten.Image
+	//go:embed assets/*
+	content embed.FS
 )
 
 func init() {
@@ -67,34 +66,25 @@ func init() {
 	overlayImage.Fill(color.RGBA{0, 0, 0, 200})
 
 	// SOURCED FROM: https://bdragon1727.itch.io/basic-pixel-health-bar-and-scroll-bar
-	buttonConfirmImage, buttonConfirmAlpha = graphics.LoadImageFromFile("./assets/confirm_button.png")
-	buttonPressedConfirmImage, buttonPressedConfirmAlpha = graphics.LoadImageFromFile("./assets/confirm_button_pressed.png")
+	buttonConfirmImage, buttonConfirmAlpha = graphics.LoadImageFromFile(&content, "assets/confirm_button.png")
+	buttonPressedConfirmImage, buttonPressedConfirmAlpha = graphics.LoadImageFromFile(&content, "assets/confirm_button_pressed.png")
 
-	buttonCancelImage, buttonCancelAlpha = graphics.LoadImageFromFile("./assets/cancel_button.png")
-	buttonPressedCancelImage, buttonPressedCancelAlpha = graphics.LoadImageFromFile("./assets/cancel_button_pressed.png")
+	buttonCancelImage, buttonCancelAlpha = graphics.LoadImageFromFile(&content, "assets/cancel_button.png")
+	buttonPressedCancelImage, buttonPressedCancelAlpha = graphics.LoadImageFromFile(&content, "assets/cancel_button_pressed.png")
 
-	buttonPassImage, buttonPassAlpha = graphics.LoadImageFromFile("./assets/pass_button.png")
+	buttonPassImage, buttonPassAlpha = graphics.LoadImageFromFile(&content, "assets/pass_button.png")
 
-	buttonHeartsImage, buttonHeartsAlpha = graphics.LoadImageFromFile("./assets/hearts_button.png")
-	buttonPressedHeartsImage, buttonPressedHeartsAlpha = graphics.LoadImageFromFile("./assets/hearts_button_pressed.png")
+	buttonHeartsImage, buttonHeartsAlpha = graphics.LoadImageFromFile(&content, "assets/hearts_button.png")
+	buttonPressedHeartsImage, buttonPressedHeartsAlpha = graphics.LoadImageFromFile(&content, "assets/hearts_button_pressed.png")
 
-	buttonDiamondsImage, buttonDiamondsAlpha = graphics.LoadImageFromFile("./assets/diamonds_button.png")
-	buttonPressedDiamondsImage, buttonPressedDiamondsAlpha = graphics.LoadImageFromFile("./assets/diamonds_button_pressed.png")
+	buttonDiamondsImage, buttonDiamondsAlpha = graphics.LoadImageFromFile(&content, "assets/diamonds_button.png")
+	buttonPressedDiamondsImage, buttonPressedDiamondsAlpha = graphics.LoadImageFromFile(&content, "assets/diamonds_button_pressed.png")
 
-	buttonClubsImage, buttonClubsAlpha = graphics.LoadImageFromFile("./assets/clubs_button.png")
-	buttonPressedClubsImage, buttonPressedClubsAlpha = graphics.LoadImageFromFile("./assets/clubs_button_pressed.png")
+	buttonClubsImage, buttonClubsAlpha = graphics.LoadImageFromFile(&content, "assets/clubs_button.png")
+	buttonPressedClubsImage, buttonPressedClubsAlpha = graphics.LoadImageFromFile(&content, "assets/clubs_button_pressed.png")
 
-	buttonSpadesImage, buttonSpadesAlpha = graphics.LoadImageFromFile("./assets/spades_button.png")
-	buttonPressedSpadesImage, buttonPressedSpadesAlpha = graphics.LoadImageFromFile("./assets/spades_button_pressed.png")
-
-	ebitenImage = graphics.LoadImage(&images.Ebiten_png)
-
-	// Read the file into a byte array
-	var err error
-	cardImage, _, err = ebitenutil.NewImageFromFile("./assets/ace_of_spades.png")
-	if err != nil {
-		log.Fatal(err)
-	}
+	buttonSpadesImage, buttonSpadesAlpha = graphics.LoadImageFromFile(&content, "assets/spades_button.png")
+	buttonPressedSpadesImage, buttonPressedSpadesAlpha = graphics.LoadImageFromFile(&content, "assets/spades_button_pressed.png")
 
 	initCardImages()
 }
@@ -204,6 +194,14 @@ func (g *Game) initOverlay() {
 	g.overlay = *graphics.CreateShape(overlayImage, vertices, indices, 0, 0, 0, 0, 0, 0)
 }
 
+// *****
+// FIXME:
+// x start on the correct player (ie one after trump pickup player)
+// - double check that scoring is working as intended
+// - fix next trump chooser skipping players sometimes??
+// - test that both picking up trump AND choosing trump suit work
+// *****
+
 func (g *Game) init() {
 	defer func() {
 		g.inited = true
@@ -241,8 +239,8 @@ func (g *Game) init() {
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
 
-	g.activePlayer = 0
 	g.trumpDrawPlayer = 0
+	g.activePlayer = g.GetNextPlayer(g.trumpDrawPlayer).Id
 
 	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
@@ -538,13 +536,14 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 	switch turnInfo.TurnType {
 	case connection.TrumpPass:
 		g.passCounter++
-		g.activePlayer = g.GetNextPlayer(turnInfo.PlayerId).Id
+		g.SetActiveId(g.GetNextPlayer(turnInfo.PlayerId).Id)
 		break
 	case connection.TrumpPick:
 		if turnInfo.TrumpPick < 0 {
 			// Don't want to repeat picking up trump, since client already did it
 			if turnInfo.PlayerId != g.id {
-				g.PickUpTrump(g.GetPlayer(turnInfo.PlayerId))
+				g.PickUpTrump(g.GetPlayer(g.trumpDrawPlayer))
+				g.SetActiveId(g.trumpDrawPlayer)
 			}
 		} else {
 			trumpSuit := Suit(turnInfo.TrumpPick)

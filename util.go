@@ -10,7 +10,8 @@ func confirmTrump(g *Game) {
 		return
 	}
 
-	g.PickUpTrump(g.GetActivePlayer())
+	g.PickUpTrump(g.GetPlayer(g.trumpDrawPlayer))
+	g.SetActiveId(g.trumpDrawPlayer)
 	g.SendTurnTrumpPick(-1)
 }
 

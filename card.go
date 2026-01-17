@@ -106,14 +106,14 @@ func NumberToString(num Number) string {
 
 func initCardImageFiles() {
 	// One image for each card + blank side
-	allowedImageFiles := []string{"./assets/ace_of_spades.png", "./assets/ten_of_clubs.png", "./assets/jack_of_clubs.png"}
+	allowedImageFiles := []string{"assets/ace_of_spades.png", "assets/ten_of_clubs.png", "assets/jack_of_clubs.png"}
 
 	cardImageFilenames = make([][]string, 4) // <-- the number of suits in play + 1 for blank side
 	for i := range cardImageFilenames {
 		cardImageFilenames[i] = make([]string, 6) // <-- the number of distinct nums in play
 
 		for j := range cardImageFilenames[i] {
-			cardImageFilenames[i][j] = "./assets/" + NumberToString(Number(j)) + "_of_" + SuitToString(Suit(i)) + ".png"
+			cardImageFilenames[i][j] = "assets/" + NumberToString(Number(j)) + "_of_" + SuitToString(Suit(i)) + ".png"
 
 			// TODO: Change the image overriding when other images are in place
 			if !slices.Contains(allowedImageFiles, cardImageFilenames[i][j]) {
@@ -123,7 +123,7 @@ func initCardImageFiles() {
 	}
 
 	// FIXME: THIS IS FACE-DOWN CARD IMAGE SOMEDAY
-	blankImageFilename = "./assets/blank.png"
+	blankImageFilename = "assets/blank.png"
 }
 
 func initCardImages() {
@@ -136,13 +136,13 @@ func initCardImages() {
 
 		for j := range cardAlphaImages[i] {
 			// Read the file into a byte array
-			cardImage, cardAlphaImage := graphics.LoadImageFromFile(cardImageFilenames[i][j])
+			cardImage, cardAlphaImage := graphics.LoadImageFromFile(&content, cardImageFilenames[i][j])
 			cardImages[i][j] = cardImage
 			cardAlphaImages[i][j] = cardAlphaImage
 		}
 	}
 
-	blankCardImage, blankCardAlphaImage = graphics.LoadImageFromFile(blankImageFilename)
+	blankCardImage, blankCardAlphaImage = graphics.LoadImageFromFile(&content, blankImageFilename)
 }
 
 func CreateCard(suit Suit, number Number, playerId int, scale float64, x int, y int, angle int, faceDown bool) *Card {
