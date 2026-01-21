@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Ebiten WASM</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: black;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <script src="wasm_exec.js"></script>
+  <script>
+    const go = new Go();
+
+    WebAssembly.instantiateStreaming(fetch("bloner.wasm"), go.importObject)
+      .then(result => go.run(result.instance))
+      .catch(err => console.error(err));
+  </script>
+</body>
+</html>
