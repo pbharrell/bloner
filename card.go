@@ -67,7 +67,6 @@ var (
 	blankCardAlphaImage *image.Alpha
 	cardImageFilenames  [][]string
 	blankImageFilename  string
-	// TODO: Blank side image
 )
 
 func SuitToString(suit Suit) string {

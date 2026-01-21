@@ -7,7 +7,6 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -41,18 +40,9 @@ func LoadImageFromFile(content *embed.FS, path string) (*ebiten.Image, *image.Al
 	)
 
 	fileImage, img, err = ebitenutil.NewImageFromFileSystem(content, path)
-	// data, err := content.ReadFile(path)
-	// // reader, err := os.Open(path)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// // defer reader.Close()
-	//
-	// img, _, err := image.Decode(strings.NewReader(data))
 	if err != nil {
 		log.Fatal(err)
 	}
-	// fileImage = ebiten.NewImageFromImage(img)
 
 	b := img.Bounds()
 	fileAlpha = image.NewAlpha(b)
@@ -101,30 +91,6 @@ func CreateSprite(image *ebiten.Image, alphaImage *image.Alpha, scale float64, x
 		Vangle:      vangle,
 		Visible:     true,
 	}
-}
-
-func CreateSpriteFromFile(imageFile string, scale float64, x int, y int, angle int, vx int, vy int, vangle int) *Sprite {
-	reader, err := os.Open(imageFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer reader.Close()
-
-	img, _, err := image.Decode(reader)
-	if err != nil {
-		log.Fatal(err)
-	}
-	spriteImage := ebiten.NewImageFromImage(img)
-
-	b := img.Bounds()
-	spriteAlphaImage := image.NewAlpha(b)
-	for j := b.Min.Y; j < b.Max.Y; j++ {
-		for i := b.Min.X; i < b.Max.X; i++ {
-			spriteAlphaImage.Set(i, j, img.At(i, j))
-		}
-	}
-
-	return CreateSprite(spriteImage, spriteAlphaImage, scale, x, y, angle, vx, vy, vangle)
 }
 
 func (s *Sprite) Update() {

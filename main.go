@@ -2,19 +2,21 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"image"
 	"image/color"
 	_ "image/png"
 	"log"
-	"net"
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+
+	"github.com/coder/websocket"
 
 	"github.com/pbharrell/bloner-server/connection"
 
@@ -56,10 +58,10 @@ var (
 	buttonSpadesAlpha        *image.Alpha
 	buttonPressedSpadesImage *ebiten.Image
 	buttonPressedSpadesAlpha *image.Alpha
-
-	//go:embed assets/*
-	content embed.FS
 )
+
+//go:embed assets/*
+var content embed.FS
 
 func init() {
 	overlayImage = ebiten.NewImage(3, 3)
@@ -277,14 +279,16 @@ func (g *Game) init() {
 
 	g.initOverlay()
 
-	conn, err := net.Dial("tcp", "localhost:9000")
+	ctx := context.Background()
+	conn, _, err := websocket.Dial(ctx, "ws://localhost:9000/ws", nil)
+
 	if err != nil {
-		fmt.Printf("Error connecting to server: `%v`\nCan debug in offline mode, but don't expect to join a game anytime soon.", err)
 		return
 	}
 
 	g.server.server = connection.Server{
-		Conn: conn,
+		Ctx:  ctx,
+		WS:   conn,
 		Data: make(chan connection.Message),
 	}
 	g.server.connected = true
@@ -960,8 +964,6 @@ func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("bloner")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
-
-	// gob.Register(state.GameState{})
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)

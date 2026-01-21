@@ -222,7 +222,7 @@ func (p *Player) ArrangeHand(clientId int) {
 	cards := p.Cards
 	sideLen := p.PosInfo.SideLen
 
-	// // Assume that all the cards are of the same width
+	// Assume that all the cards are of the same width
 	numCards := len(cards)
 	if numCards == 0 {
 		return

@@ -4,10 +4,11 @@ go 1.23.6
 
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.8.8
-	github.com/pbharrell/bloner-server v0.0.0-20251123143350-d69ef93ee331
+	github.com/pbharrell/bloner-server v0.0.0-20260120032616-c24b366dddb9
 )
 
 require (
+	github.com/coder/websocket v1.8.14 // indirect
 	github.com/go-text/typesetting v0.2.0 // indirect
 	golang.org/x/image v0.20.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
