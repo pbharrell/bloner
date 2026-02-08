@@ -34,8 +34,8 @@ github.com/jfreymuth/vorbis v1.0.0/go.mod h1:8zy3lUAm9K/rJJk223RKy6vjCZTWC61NA2Q
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
-github.com/pbharrell/bloner-server v0.0.0-20260120032616-c24b366dddb9 h1:mfGEK71H29gnKNlT8sZwuWyfYd9VR3C9Bl//k2xR5dw=
-github.com/pbharrell/bloner-server v0.0.0-20260120032616-c24b366dddb9/go.mod h1:jOrvzFHkSyXnBvaW2UO2qoWOce5OY3kNU4rdPM7EWB0=
+github.com/pbharrell/bloner-server v0.0.0-20260207224840-42079f40fe4b h1:Mxpkv4/Gqht0tk0uPxFAO6BT4OltI2CNYbnMtrJcjcA=
+github.com/pbharrell/bloner-server v0.0.0-20260207224840-42079f40fe4b/go.mod h1:jOrvzFHkSyXnBvaW2UO2qoWOce5OY3kNU4rdPM7EWB0=
 github.com/pierrec/lz4/v4 v4.1.21 h1:yOVMLb6qSIDP67pl/5F7RepeKYu/VmTyEXvuMI5d9mQ=
 github.com/pierrec/lz4/v4 v4.1.21/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=
 github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4/go.mod h1:4OwLy04Bl9Ef3GJJCoec+30X3LQs/0/m4HFRt/2LUSA=

@@ -34,9 +34,15 @@ func GenIndices(numVertices int) []uint16 {
 }
 
 func CreateShape(image *ebiten.Image, vertices []ebiten.Vertex, indices []uint16, x int, y int, angle int, vx int, vy int, vangle int) *Shape {
+	translatedVertices := vertices
+	for i := range len(translatedVertices) {
+		translatedVertices[i].DstX = translatedVertices[i].DstX + float32(x)
+		translatedVertices[i].DstY = translatedVertices[i].DstY + float32(y)
+	}
+
 	return &Shape{
 		Image:    image,
-		Vertices: vertices,
+		Vertices: translatedVertices,
 		Indices:  indices,
 		X:        x,
 		Y:        y,

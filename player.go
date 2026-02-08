@@ -123,9 +123,7 @@ func (p *Player) DealHand(scale float64, drawPile *DrawPile, handSize int, faceD
 		if drawPile != nil {
 			p.Cards[i] = drawPile.drawCard(scale, 0, 0, 0, faceDown)
 			if p.Cards[i] == nil {
-				println("Drew card but somehow wound up with nil")
 			} else {
-				println("Settings drawn card id to:", p.Id)
 				p.Cards[i].PlayerId = p.Id
 			}
 		} else {
@@ -143,12 +141,14 @@ func (p *Player) Arrange(clientId int, clientPos PlayPos) {
 
 func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connection.PlayerState) {
 	// Face down value should be overridden by `ArrangeHand` later
+	println("Decoding player with id:", playerState.PlayerId)
 	p.Id = playerState.PlayerId
 	p.Cards = DecodeCardPile(playerState.Cards, playerState.PlayerId, .35 /*faceDown*/, true)
 	p.AbsPos = PlayPos(uint8(teamColor) + playerNum*2)
 }
 
 func (p *Player) Encode() connection.PlayerState {
+	println("Encoding player with id:", p.Id)
 	playerId := p.Id
 	cards := make([]connection.Card, len(p.Cards))
 	for k := range cards {

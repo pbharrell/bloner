@@ -2,7 +2,44 @@ package main
 
 import (
 	_ "image/png"
+	"strconv"
+
+	"github.com/pbharrell/bloner-server/connection"
 )
+
+func newLobby(g *Game) {
+	g.server.server.Send(connection.Message{
+		Type: "lobby_req",
+		Data: -1,
+	})
+}
+
+func joinLobby(g *Game) {
+	g.buttonNewLobby.pressCallback = backToLobbyTypeSelect
+	g.buttonNewLobby.SetLoc(g.buttonNewLobby.sprite.X, g.buttonNewLobby.sprite.Y+50)
+	g.buttonJoinLobby.pressCallback = joinSpecifiedLobby
+	g.buttonJoinLobby.SetLoc(g.buttonJoinLobby.sprite.X, g.buttonJoinLobby.sprite.Y+50)
+	g.mode = LobbyRequestInput
+}
+
+func backToLobbyTypeSelect(g *Game) {
+	g.buttonNewLobby.pressCallback = newLobby
+	g.buttonNewLobby.SetLoc(g.buttonNewLobby.sprite.X, g.buttonNewLobby.sprite.Y-50)
+	g.buttonJoinLobby.pressCallback = joinLobby
+	g.buttonJoinLobby.SetLoc(g.buttonJoinLobby.sprite.X, g.buttonJoinLobby.sprite.Y-50)
+	g.mode = LobbyTypeSelect
+}
+
+func joinSpecifiedLobby(g *Game) {
+	lobbyReqId, err := strconv.ParseInt(g.lobbyRequestStr, 10, 16)
+	if err != nil {
+		panic("Invalid int passed for lobby request!")
+	}
+	g.server.server.Send(connection.Message{
+		Type: "lobby_req",
+		Data: int16(lobbyReqId),
+	})
+}
 
 func confirmTrump(g *Game) {
 	if len(g.trick.Pile) < 1 {
@@ -10,9 +47,9 @@ func confirmTrump(g *Game) {
 		return
 	}
 
-	g.PickUpTrump(g.GetPlayer(g.trumpDrawPlayer))
-	g.SetActiveId(g.trumpDrawPlayer)
-	g.SendTurnTrumpPick(-1)
+	suit := g.PickUpTrump(g.GetPlayerByAbsPos(g.trumpDrawPlayer))
+	g.SetActiveAbsPos(g.trumpDrawPlayer)
+	g.SendTurnTrumpPick(int8(suit))
 }
 
 func passTrump(g *Game) {

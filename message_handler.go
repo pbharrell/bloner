@@ -17,6 +17,17 @@ func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
 	g.debugPrintln("Handled lobby assign message!")
 }
 
+func (g *Game) HandleGameStartMessage(data connection.GameStart) {
+	for len(data) > 0 {
+		for i := range g.teams {
+			for j := range g.teams[i].players {
+				g.teams[i].players[j].Id = data[i*2+j]
+			}
+		}
+		break
+	}
+}
+
 func (g *Game) HandleStateRequestMessage() {
 	g.SendStateResponse()
 }
@@ -24,6 +35,12 @@ func (g *Game) HandleStateRequestMessage() {
 func (g *Game) HandleStateResponseMessage(data connection.StateResponse) {
 	g.mode = GameActive
 	g.DecodeGameState(data)
+	// Print player ids
+	for i, t := range g.teams {
+		for _, p := range t.players {
+			println("Player on team", i, "with id", p.Id)
+		}
+	}
 }
 
 func (g *Game) HandleTurnInfoMessage(data connection.TurnInfo) {
@@ -48,6 +65,17 @@ func (g *Game) HandleMessage(msg connection.Message) {
 
 		g.HandleLobbyAssignMessage(lobbyAssign)
 		break
+
+	case "game_start":
+		var gameStart connection.GameStart
+		if err := json.Unmarshal(raw, &gameStart); err != nil {
+			println("LobbyAssign unmarshal error:", err)
+			return
+		}
+
+		g.HandleGameStartMessage(gameStart)
+		break
+
 	case "state_req":
 		g.HandleStateRequestMessage()
 		break

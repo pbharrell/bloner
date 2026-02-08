@@ -24,7 +24,18 @@ import (
 )
 
 var (
-	overlayImage *ebiten.Image
+	overlayImage     *ebiten.Image
+	txtInputBoxImage *ebiten.Image
+
+	buttonNewLobbyImage        *ebiten.Image
+	buttonNewLobbyAlpha        *image.Alpha
+	buttonPressedNewLobbyImage *ebiten.Image
+	buttonPressedNewLobbyAlpha *image.Alpha
+
+	buttonJoinLobbyImage        *ebiten.Image
+	buttonJoinLobbyAlpha        *image.Alpha
+	buttonPressedJoinLobbyImage *ebiten.Image
+	buttonPressedJoinLobbyAlpha *image.Alpha
 
 	buttonConfirmImage        *ebiten.Image
 	buttonConfirmAlpha        *image.Alpha
@@ -67,7 +78,16 @@ func init() {
 	overlayImage = ebiten.NewImage(3, 3)
 	overlayImage.Fill(color.RGBA{0, 0, 0, 200})
 
+	txtInputBoxImage = ebiten.NewImage(3, 3)
+	txtInputBoxImage.Fill(color.RGBA{0, 0, 0, 255})
+
 	// SOURCED FROM: https://bdragon1727.itch.io/basic-pixel-health-bar-and-scroll-bar
+	buttonNewLobbyImage, buttonNewLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/new_lobby_button.png")
+	buttonPressedNewLobbyImage, buttonPressedNewLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/new_lobby_button_pressed.png")
+
+	buttonJoinLobbyImage, buttonJoinLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/join_lobby_button.png")
+	buttonPressedJoinLobbyImage, buttonPressedJoinLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/join_lobby_button_pressed.png")
+
 	buttonConfirmImage, buttonConfirmAlpha = graphics.LoadImageFromFile(&content, "assets/confirm_button.png")
 	buttonPressedConfirmImage, buttonPressedConfirmAlpha = graphics.LoadImageFromFile(&content, "assets/confirm_button_pressed.png")
 
@@ -100,7 +120,9 @@ const (
 type mode uint8
 
 const (
-	LobbyWait mode = iota
+	LobbyTypeSelect mode = iota
+	LobbyRequestInput
+	LobbyRequested
 	LobbyAssigned
 	GameActive
 )
@@ -113,8 +135,9 @@ const (
 )
 
 type Server struct {
-	connected bool
 	server    connection.Server
+	connected bool
+	lobbyId   int
 }
 
 type TurnInfo struct {
@@ -133,9 +156,12 @@ type Game struct {
 	trumpSuit       *Suit
 	passCounter     int
 	teams           [2]Team
-	activePlayer    int
-	trumpDrawPlayer int
+	activePlayer    PlayPos
+	trumpDrawPlayer PlayPos
 	touchIDs        []ebiten.TouchID
+	buttonNewLobby  Button
+	buttonJoinLobby Button
+	lobbyRequestStr string
 	buttonConfirm   Button
 	buttonCancel    Button
 	buttonPass      Button
@@ -144,6 +170,7 @@ type Game struct {
 	buttonClubs     Button
 	buttonSpades    Button
 	overlay         graphics.Shape
+	txtInputBox     *graphics.Shape
 	drawPile        DrawPile
 	trick           Trick
 	turnInfo        TurnInfo
@@ -217,7 +244,7 @@ func (g *Game) init() {
 		log.Fatal(err)
 	}
 
-	g.mode = LobbyWait
+	g.mode = LobbyTypeSelect
 
 	g.lobbyId = -1
 
@@ -242,7 +269,17 @@ func (g *Game) init() {
 	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
 
 	g.trumpDrawPlayer = 0
-	g.activePlayer = g.GetNextPlayer(g.trumpDrawPlayer).Id
+	g.activePlayer = g.GetNextPlayerByAbsPos(g.trumpDrawPlayer).AbsPos
+
+	g.buttonNewLobby = *CreateButton(g, newLobby, buttonNewLobbyImage, buttonNewLobbyAlpha, buttonPressedNewLobbyImage, buttonPressedNewLobbyAlpha, 4, 0, screenHeight/2+80, 0)
+	newLobbyWidth := g.buttonNewLobby.sprite.ImageWidth
+	newLobbyX := screenWidth/2 - newLobbyWidth/2 - 80
+	g.buttonNewLobby.SetLoc(newLobbyX, g.buttonNewLobby.sprite.Y)
+
+	g.buttonJoinLobby = *CreateButton(g, joinLobby, buttonJoinLobbyImage, buttonJoinLobbyAlpha, buttonPressedJoinLobbyImage, buttonPressedJoinLobbyAlpha, 4, 0, screenHeight/2+80, 0)
+	joinLobbyWidth := g.buttonJoinLobby.sprite.ImageWidth
+	joinLobbyX := screenWidth/2 - joinLobbyWidth/2 + 80
+	g.buttonJoinLobby.SetLoc(joinLobbyX, g.buttonJoinLobby.sprite.Y)
 
 	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
@@ -292,6 +329,7 @@ func (g *Game) init() {
 		Data: make(chan connection.Message),
 	}
 	g.server.connected = true
+	g.server.lobbyId = -1
 
 	g.turnInfo.inited = false
 
@@ -304,7 +342,20 @@ func (g *Game) debugPrintln(msg string) {
 	}
 }
 
-func (g *Game) GetPlayer(id int) *Player {
+func (g *Game) GetPlayerByAbsPos(absPos PlayPos) *Player {
+	for i := range g.teams {
+		for j := range g.teams[i].players {
+			if absPos == g.teams[i].players[j].AbsPos {
+				return &g.teams[i].players[j]
+			}
+		}
+	}
+
+	fmt.Printf("ERROR: Should not be here! Called `game.GetPlayer(%v)` with no player matching that id present in player list", absPos)
+	return nil
+}
+
+func (g *Game) GetPlayerById(id int) *Player {
 	for i := range g.teams {
 		for j := range g.teams[i].players {
 			if id == g.teams[i].players[j].Id {
@@ -317,9 +368,9 @@ func (g *Game) GetPlayer(id int) *Player {
 	return nil
 }
 
-func (g *Game) GetNextPlayer(id int) *Player {
-	prevPlayerPos := g.GetPlayer(id).AbsPos
-	nextPlayerPos := (prevPlayerPos + 1) % 4
+func (g *Game) GetNextPlayerByAbsPos(absPos PlayPos) *Player {
+	nextPlayerPos := (absPos + 1) % 4
+	println("GetNextPlayerByAbsPos() prev:", absPos, "next:", nextPlayerPos)
 
 	for i := range g.teams {
 		for j := range g.teams[i].players {
@@ -329,24 +380,41 @@ func (g *Game) GetNextPlayer(id int) *Player {
 		}
 	}
 
-	fmt.Printf("ERROR: Should not be here! Called `game.GetNextPlayer(%v)` and somehow could not find the player at the adjascent position.", id)
+	fmt.Printf("ERROR: Should not be here! Called `game.GetNextPlayerByAbsPos(%v)` and somehow could not find the player at the adjascent position.", absPos)
+	return nil
+}
+
+func (g *Game) GetNextPlayerById(id int) *Player {
+	prevPlayerPos := g.GetPlayerById(id).AbsPos
+	nextPlayerPos := (prevPlayerPos + 1) % 4
+	println("GetNextPlayerByAbsPos() prev:", prevPlayerPos, "next:", nextPlayerPos)
+
+	for i := range g.teams {
+		for j := range g.teams[i].players {
+			if nextPlayerPos == g.teams[i].players[j].AbsPos {
+				return &g.teams[i].players[j]
+			}
+		}
+	}
+
+	fmt.Printf("ERROR: Should not be here! Called `game.GetNextPlayerById(%v)` and somehow could not find the player at the adjascent position.", id)
 	return nil
 }
 
 func (g *Game) GetClient() *Player {
-	return g.GetPlayer(g.id)
+	return g.GetPlayerById(g.id)
 }
 
 func (g *Game) GetActivePlayer() *Player {
-	return g.GetPlayer(g.activePlayer)
+	return g.GetPlayerByAbsPos(g.activePlayer)
 }
 
-func (g *Game) SetActiveId(id int) {
-	g.activePlayer = id
+func (g *Game) SetActiveAbsPos(absPos PlayPos) {
+	g.activePlayer = absPos
 }
 
 func (g *Game) SetActivePlayer(player *Player) {
-	g.activePlayer = player.Id
+	g.activePlayer = player.AbsPos
 }
 
 func (g *Game) GetTeam(player *Player) *Team {
@@ -398,7 +466,7 @@ func (g *Game) SendStateResponse() {
 	var gameState connection.StateResponse
 
 	gameState = g.EncodeGameState()
-	fmt.Printf("%v", gameState)
+	fmt.Printf("Player id: %v\n", gameState.PlayerId)
 	if g.server.connected {
 		g.server.server.Send(connection.Message{
 			Type: "state_res",
@@ -450,7 +518,7 @@ func (g *Game) SendTurnTrumpPass() {
 	g.EndTurn()
 }
 
-func (g *Game) PickUpTrump(player *Player) {
+func (g *Game) PickUpTrump(player *Player) Suit {
 	topCard := g.trick.Pile[len(g.trick.Pile)-1]
 	topCard.PlayerId = player.Id
 	g.trick.Pile = g.trick.Pile[:len(g.trick.Pile)-1]
@@ -458,10 +526,11 @@ func (g *Game) PickUpTrump(player *Player) {
 
 	player.Cards = append(player.Cards, topCard)
 	player.ArrangeHand(g.GetClient().Id)
+	return topCard.Suit
 }
 
 func (g *Game) PlayCard(playerId int, cardInd int) {
-	player := g.GetPlayer(playerId)
+	player := g.GetPlayerById(playerId)
 	playedCard := player.Cards[cardInd]
 
 	if len(g.trick.Pile) == 0 {
@@ -478,7 +547,7 @@ func (g *Game) EndTurn() {
 }
 
 func (g *Game) IsPickingTrump() bool {
-	return g.activePlayer == g.id && g.trumpSuit == nil
+	return g.activePlayer == g.GetClient().AbsPos && g.trumpSuit == nil
 }
 
 func (g *Game) EncodeGameState() connection.GameState {
@@ -501,8 +570,8 @@ func (g *Game) EncodeGameState() connection.GameState {
 
 	return connection.GameState{
 		PlayerId:        g.id,
-		ActivePlayer:    g.activePlayer,
-		TrumpDrawPlayer: g.trumpDrawPlayer,
+		ActivePlayer:    int(g.activePlayer),
+		TrumpDrawPlayer: int(g.trumpDrawPlayer),
 		TrumpSuit:       intTrumpSuit,
 		DrawPile:        encDrawPile,
 		PlayPile:        encPlayPile,
@@ -511,8 +580,8 @@ func (g *Game) EncodeGameState() connection.GameState {
 }
 
 func (g *Game) DecodeGameState(state connection.GameState) {
-	g.SetActiveId(state.ActivePlayer)
-	g.trumpDrawPlayer = state.TrumpDrawPlayer
+	g.SetActiveAbsPos(PlayPos(state.ActivePlayer))
+	g.trumpDrawPlayer = PlayPos(state.TrumpDrawPlayer)
 
 	if state.TrumpSuit < 0 {
 		g.trumpSuit = nil
@@ -540,14 +609,14 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 	switch turnInfo.TurnType {
 	case connection.TrumpPass:
 		g.passCounter++
-		g.SetActiveId(g.GetNextPlayer(turnInfo.PlayerId).Id)
+		g.SetActiveAbsPos(g.GetNextPlayerById(turnInfo.PlayerId).AbsPos)
 		break
 	case connection.TrumpPick:
 		if turnInfo.TrumpPick < 0 {
 			// Don't want to repeat picking up trump, since client already did it
 			if turnInfo.PlayerId != g.id {
-				g.PickUpTrump(g.GetPlayer(g.trumpDrawPlayer))
-				g.SetActiveId(g.trumpDrawPlayer)
+				g.PickUpTrump(g.GetPlayerByAbsPos(g.trumpDrawPlayer))
+				g.SetActiveAbsPos(g.trumpDrawPlayer)
 			}
 		} else {
 			trumpSuit := Suit(turnInfo.TrumpPick)
@@ -557,15 +626,15 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 		}
 		break
 	case connection.TrumpDiscard:
-		g.GetPlayer(turnInfo.PlayerId).DiscardEncoded(turnInfo.TrumpDiscard, g.id)
+		g.GetPlayerById(turnInfo.PlayerId).DiscardEncoded(turnInfo.TrumpDiscard, g.id)
 		g.activePlayer = g.trumpDrawPlayer
 		break
 	case connection.CardPlay:
 		if turnInfo.PlayerId != g.id {
-			turnPlayer := g.GetPlayer(turnInfo.PlayerId)
+			turnPlayer := g.GetPlayerById(turnInfo.PlayerId)
 			cardPlayed := CreateCard(Suit(turnInfo.CardPlay.Suit), Number(turnInfo.CardPlay.Number), turnInfo.PlayerId, .35, 0, 0, 0, true)
 			g.PlayCard(turnPlayer.Id, turnPlayer.GetCardInd(cardPlayed))
-			g.activePlayer = g.GetNextPlayer(turnInfo.PlayerId).Id
+			g.activePlayer = g.GetNextPlayerById(turnInfo.PlayerId).AbsPos
 		}
 		break
 	}
@@ -600,7 +669,13 @@ func (g *Game) Update() error {
 	}
 
 	switch g.mode {
-	case LobbyWait:
+	case LobbyTypeSelect:
+		g.UpdateLobbyTypeSelect()
+		break
+	case LobbyRequestInput:
+		g.UpdateLobbyRequestInput()
+		break
+	case LobbyRequested:
 		break
 	case LobbyAssigned:
 		break
@@ -612,9 +687,64 @@ func (g *Game) Update() error {
 	return nil
 }
 
+func (g *Game) UpdateLobbyTypeSelect() {
+	x, y := ebiten.CursorPosition()
+	mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+
+	g.buttonNewLobby.Update(x, y, mouseButtonPressed)
+	g.buttonJoinLobby.Update(x, y, mouseButtonPressed)
+}
+
+func (g *Game) UpdateLobbyRequestInput() {
+	x, y := ebiten.CursorPosition()
+	mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+
+	g.buttonNewLobby.Update(x, y, mouseButtonPressed)
+	g.buttonJoinLobby.Update(x, y, mouseButtonPressed)
+
+	if len(g.lobbyRequestStr) < 22 {
+		if inpututil.IsKeyJustPressed(ebiten.Key0) {
+			g.lobbyRequestStr += "0"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key1) {
+			g.lobbyRequestStr += "1"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key2) {
+			g.lobbyRequestStr += "2"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key3) {
+			g.lobbyRequestStr += "3"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key4) {
+			g.lobbyRequestStr += "4"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key5) {
+			g.lobbyRequestStr += "5"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key6) {
+			g.lobbyRequestStr += "6"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key7) {
+			g.lobbyRequestStr += "7"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key8) {
+			g.lobbyRequestStr += "8"
+		}
+		if inpututil.IsKeyJustPressed(ebiten.Key9) {
+			g.lobbyRequestStr += "9"
+		}
+	}
+
+	if len(g.lobbyRequestStr) > 0 {
+		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+			g.lobbyRequestStr = g.lobbyRequestStr[:len(g.lobbyRequestStr)-1]
+		}
+	}
+}
+
 func (g *Game) UpdateGameActive() {
 	client := g.GetClient()
-	if g.activePlayer == client.Id {
+	if g.activePlayer == client.AbsPos {
 		g.UpdateClientTurn()
 	}
 
@@ -622,7 +752,7 @@ func (g *Game) UpdateGameActive() {
 		highestCard := GetHighestCardFromPile(g.trick.Pile, g.trick.LeadSuit, *g.trumpSuit)
 		println("Highest card returned from pile:", SuitToString(highestCard.Suit), NumberToString(highestCard.Number))
 		println("Highest card player id:", highestCard.PlayerId)
-		g.GetPlayer(highestCard.PlayerId).WinTrick(g.id)
+		g.GetPlayerById(highestCard.PlayerId).WinTrick(g.id)
 		g.trick.clear()
 	}
 
@@ -670,7 +800,7 @@ func (g *Game) UpdateGameActive() {
 		g.trumpDrawPlayer = (g.trumpDrawPlayer + 1) % 4
 		g.activePlayer += g.trumpDrawPlayer
 
-		if g.activePlayer == g.id {
+		if g.activePlayer == client.AbsPos {
 			g.SendStateResponse()
 		}
 	}
@@ -749,9 +879,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{161, 191, 123, 1})
 
 	switch g.mode {
-	case LobbyWait:
+	case LobbyTypeSelect:
 		g.DrawLobbyWait(screen)
 		break
+	case LobbyRequestInput:
+		g.DrawLobbyRequestInput(screen)
+	case LobbyRequested:
+		g.DrawLobbyRequested(screen)
 	case LobbyAssigned:
 		g.DrawLobbyAssigned(screen)
 		break
@@ -765,8 +899,9 @@ func (g *Game) DrawLobbyWait(screen *ebiten.Image) {
 	g.overlay.Draw(screen)
 
 	var (
-		discardText = "Searching for a lobby..."
-		txtOp       = text.DrawOptions{}
+		lobbyWaitText = "Create new game or join existing?"
+		txtOp         = text.DrawOptions{}
+		op            = ebiten.DrawImageOptions{}
 	)
 
 	// Create font faces with different sizes as needed
@@ -775,17 +910,115 @@ func (g *Game) DrawLobbyWait(screen *ebiten.Image) {
 		Size:   32,
 	}
 
-	txtW, txtH := text.Measure(discardText, fontFace, 0)
+	txtW, txtH := text.Measure(lobbyWaitText, fontFace, 0)
 	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
-	text.Draw(screen, discardText, fontFace, &txtOp)
+	text.Draw(screen, lobbyWaitText, fontFace, &txtOp)
+
+	g.buttonNewLobby.Draw(screen, op)
+	g.buttonJoinLobby.Draw(screen, op)
+}
+
+func (g *Game) DrawLobbyRequestInput(screen *ebiten.Image) {
+	g.overlay.Draw(screen)
+
+	var (
+		op                       = ebiten.DrawImageOptions{}
+		lobbyRequestInputTxt     = "Id of lobby you'd like to join:"
+		lobbyRequestInputTxtOp   = text.DrawOptions{}
+		lobbyRequstInputTxtBoxOp = text.DrawOptions{}
+	)
+
+	// Create font faces with different sizes as needed
+	fontFace := &text.GoTextFace{
+		Source: g.fontSource,
+		Size:   32,
+	}
+
+	lobbyRequestInputTxtW, lobbyRequestInputTxtH := text.Measure(lobbyRequestInputTxt, fontFace, 0)
+	lobbyRequestInputTxtOp.GeoM.Translate(screenWidth/2-lobbyRequestInputTxtW/2, screenHeight/2-lobbyRequestInputTxtH)
+	text.Draw(screen, lobbyRequestInputTxt, fontFace, &lobbyRequestInputTxtOp)
+
+	if g.txtInputBox == nil {
+		var vertices []ebiten.Vertex
+		vertices = append(vertices, ebiten.Vertex{
+			DstX:   0,
+			DstY:   0,
+			SrcX:   float32(0),
+			SrcY:   float32(0),
+			ColorR: float32(1),
+			ColorG: float32(1),
+			ColorB: float32(1),
+			ColorA: 1,
+		})
+		vertices = append(vertices, ebiten.Vertex{
+			DstX:   float32(lobbyRequestInputTxtW) + 10,
+			DstY:   0,
+			SrcX:   float32(1),
+			SrcY:   float32(0),
+			ColorR: float32(1),
+			ColorG: float32(1),
+			ColorB: float32(1),
+			ColorA: 1,
+		})
+		vertices = append(vertices, ebiten.Vertex{
+			DstX:   float32(lobbyRequestInputTxtW) + 10,
+			DstY:   float32(lobbyRequestInputTxtH) + 10,
+			SrcX:   float32(1),
+			SrcY:   float32(1),
+			ColorR: float32(1),
+			ColorG: float32(1),
+			ColorB: float32(1),
+			ColorA: 1,
+		})
+		vertices = append(vertices, ebiten.Vertex{
+			DstX:   0,
+			DstY:   float32(lobbyRequestInputTxtH) + 10,
+			SrcX:   float32(0),
+			SrcY:   float32(1),
+			ColorR: float32(1),
+			ColorG: float32(1),
+			ColorB: float32(1),
+			ColorA: 1,
+		})
+		indices := graphics.GenIndices(len(vertices))
+		g.txtInputBox = graphics.CreateShape(txtInputBoxImage, vertices, indices, int(screenWidth/2-lobbyRequestInputTxtW/2-5), int(screenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
+		println(g.txtInputBox.X, g.txtInputBox.Y)
+	}
+	g.txtInputBox.Draw(screen)
+
+	lobbyRequstInputTxtBoxOp.GeoM.Translate(float64(g.txtInputBox.X+5), float64(g.txtInputBox.Y+5))
+	text.Draw(screen, g.lobbyRequestStr, fontFace, &lobbyRequstInputTxtBoxOp)
+
+	g.buttonNewLobby.Draw(screen, op)
+	g.buttonJoinLobby.Draw(screen, op)
+}
+
+func (g *Game) DrawLobbyRequested(screen *ebiten.Image) {
+	g.overlay.Draw(screen)
+
+	var (
+		lobbyRequestedText = "Lobby requested! Waiting for response..."
+		txtOp              = text.DrawOptions{}
+	)
+	// Create font faces with different sizes as needed
+	fontFace := &text.GoTextFace{
+		Source: g.fontSource,
+		Size:   32,
+	}
+
+	txtW, txtH := text.Measure(lobbyRequestedText, fontFace, 0)
+	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
+	text.Draw(screen, lobbyRequestedText, fontFace, &txtOp)
 }
 
 func (g *Game) DrawLobbyAssigned(screen *ebiten.Image) {
 	g.overlay.Draw(screen)
 
 	var (
-		discardText = fmt.Sprintf("Lobby found with id: %v!", g.lobbyId)
-		txtOp       = text.DrawOptions{}
+		lobbyAssignedText  = fmt.Sprintf("Lobby found with id: %v!", g.lobbyId)
+		lobbyWaitingText   = fmt.Sprintf("Waiting on more players...")
+		lobbyAssignedTxtOp = text.DrawOptions{}
+		lobbyWaitingTxtOp  = text.DrawOptions{}
 	)
 
 	// Create font faces with different sizes as needed
@@ -794,9 +1027,13 @@ func (g *Game) DrawLobbyAssigned(screen *ebiten.Image) {
 		Size:   32,
 	}
 
-	txtW, txtH := text.Measure(discardText, fontFace, 0)
-	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
-	text.Draw(screen, discardText, fontFace, &txtOp)
+	lobbyAssignedTxtW, lobbyAssignedTxtH := text.Measure(lobbyAssignedText, fontFace, 0)
+	lobbyWaitingTxtW, lobbyWaitingTxtH := text.Measure(lobbyWaitingText, fontFace, 0)
+	lobbyAssignedTxtOp.GeoM.Translate(screenWidth/2-lobbyAssignedTxtW/2, screenHeight/2-lobbyAssignedTxtH/2)
+	text.Draw(screen, lobbyAssignedText, fontFace, &lobbyAssignedTxtOp)
+
+	lobbyWaitingTxtOp.GeoM.Translate(screenWidth/2-lobbyWaitingTxtW/2, screenHeight/2+lobbyWaitingTxtH/2)
+	text.Draw(screen, lobbyWaitingText, fontFace, &lobbyWaitingTxtOp)
 }
 
 func (g *Game) DrawGameActive(screen *ebiten.Image) {
@@ -868,7 +1105,7 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 
 		// **Everything on top of fade overlay start here**
 
-		if g.activePlayer == g.id {
+		if g.activePlayer == g.GetClient().AbsPos {
 			g.GetClient().Draw(screen, op)
 
 			if g.passCounter < 4 {
@@ -927,7 +1164,7 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 			txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
 			text.Draw(screen, waitingText, fontFace, &txtOp)
 		}
-	} else if g.trumpSuit != nil && g.activePlayer != g.id {
+	} else if g.trumpSuit != nil && g.activePlayer != g.GetClient().AbsPos {
 		g.overlay.Draw(screen)
 
 		// **Everything on top of fade overlay start here**
