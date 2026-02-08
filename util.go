@@ -47,9 +47,9 @@ func confirmTrump(g *Game) {
 		return
 	}
 
-	suit := g.PickUpTrump(g.GetPlayerByAbsPos(g.trumpDrawPlayer))
+	g.PickUpTrump(g.GetPlayerByAbsPos(g.trumpDrawPlayer))
 	g.SetActiveAbsPos(g.trumpDrawPlayer)
-	g.SendTurnTrumpPick(int8(suit))
+	g.SendTurnTrumpPick(-1)
 }
 
 func passTrump(g *Game) {

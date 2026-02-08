@@ -370,7 +370,6 @@ func (g *Game) GetPlayerById(id int) *Player {
 
 func (g *Game) GetNextPlayerByAbsPos(absPos PlayPos) *Player {
 	nextPlayerPos := (absPos + 1) % 4
-	println("GetNextPlayerByAbsPos() prev:", absPos, "next:", nextPlayerPos)
 
 	for i := range g.teams {
 		for j := range g.teams[i].players {
@@ -387,7 +386,6 @@ func (g *Game) GetNextPlayerByAbsPos(absPos PlayPos) *Player {
 func (g *Game) GetNextPlayerById(id int) *Player {
 	prevPlayerPos := g.GetPlayerById(id).AbsPos
 	nextPlayerPos := (prevPlayerPos + 1) % 4
-	println("GetNextPlayerByAbsPos() prev:", prevPlayerPos, "next:", nextPlayerPos)
 
 	for i := range g.teams {
 		for j := range g.teams[i].players {
@@ -518,7 +516,7 @@ func (g *Game) SendTurnTrumpPass() {
 	g.EndTurn()
 }
 
-func (g *Game) PickUpTrump(player *Player) Suit {
+func (g *Game) PickUpTrump(player *Player) {
 	topCard := g.trick.Pile[len(g.trick.Pile)-1]
 	topCard.PlayerId = player.Id
 	g.trick.Pile = g.trick.Pile[:len(g.trick.Pile)-1]
@@ -526,7 +524,6 @@ func (g *Game) PickUpTrump(player *Player) Suit {
 
 	player.Cards = append(player.Cards, topCard)
 	player.ArrangeHand(g.GetClient().Id)
-	return topCard.Suit
 }
 
 func (g *Game) PlayCard(playerId int, cardInd int) {
@@ -647,7 +644,6 @@ func (g *Game) Update() error {
 	}
 
 	if !g.turnInfo.inited {
-		println("Setting turn info to player id:", g.id)
 		g.turnInfo.turnInfo = connection.TurnInfo{
 			PlayerId: g.id,
 		}
@@ -1150,7 +1146,7 @@ func (g *Game) DrawGameActive(screen *ebiten.Image) {
 
 		} else {
 			var (
-				waitingText = fmt.Sprintf("Waiting on player %v to choose...", g.activePlayer)
+				waitingText = fmt.Sprintf("Waiting on player %v to choose...", g.GetPlayerByAbsPos(g.activePlayer).Id)
 				txtOp       = text.DrawOptions{}
 			)
 
