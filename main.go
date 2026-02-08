@@ -5,7 +5,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"image"
 	"image/color"
 	_ "image/png"
 	"log"
@@ -26,49 +25,6 @@ import (
 var (
 	overlayImage     *ebiten.Image
 	txtInputBoxImage *ebiten.Image
-
-	buttonNewLobbyImage        *ebiten.Image
-	buttonNewLobbyAlpha        *image.Alpha
-	buttonPressedNewLobbyImage *ebiten.Image
-	buttonPressedNewLobbyAlpha *image.Alpha
-
-	buttonJoinLobbyImage        *ebiten.Image
-	buttonJoinLobbyAlpha        *image.Alpha
-	buttonPressedJoinLobbyImage *ebiten.Image
-	buttonPressedJoinLobbyAlpha *image.Alpha
-
-	buttonConfirmImage        *ebiten.Image
-	buttonConfirmAlpha        *image.Alpha
-	buttonPressedConfirmImage *ebiten.Image
-	buttonPressedConfirmAlpha *image.Alpha
-
-	buttonCancelImage        *ebiten.Image
-	buttonCancelAlpha        *image.Alpha
-	buttonPressedCancelImage *ebiten.Image
-	buttonPressedCancelAlpha *image.Alpha
-
-	buttonPassImage *ebiten.Image
-	buttonPassAlpha *image.Alpha
-
-	buttonHeartsImage        *ebiten.Image
-	buttonHeartsAlpha        *image.Alpha
-	buttonPressedHeartsImage *ebiten.Image
-	buttonPressedHeartsAlpha *image.Alpha
-
-	buttonDiamondsImage        *ebiten.Image
-	buttonDiamondsAlpha        *image.Alpha
-	buttonPressedDiamondsImage *ebiten.Image
-	buttonPressedDiamondsAlpha *image.Alpha
-
-	buttonClubsImage        *ebiten.Image
-	buttonClubsAlpha        *image.Alpha
-	buttonPressedClubsImage *ebiten.Image
-	buttonPressedClubsAlpha *image.Alpha
-
-	buttonSpadesImage        *ebiten.Image
-	buttonSpadesAlpha        *image.Alpha
-	buttonPressedSpadesImage *ebiten.Image
-	buttonPressedSpadesAlpha *image.Alpha
 )
 
 //go:embed assets/*
@@ -80,33 +36,6 @@ func init() {
 
 	txtInputBoxImage = ebiten.NewImage(3, 3)
 	txtInputBoxImage.Fill(color.RGBA{0, 0, 0, 255})
-
-	// SOURCED FROM: https://bdragon1727.itch.io/basic-pixel-health-bar-and-scroll-bar
-	buttonNewLobbyImage, buttonNewLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/new_lobby_button.png")
-	buttonPressedNewLobbyImage, buttonPressedNewLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/new_lobby_button_pressed.png")
-
-	buttonJoinLobbyImage, buttonJoinLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/join_lobby_button.png")
-	buttonPressedJoinLobbyImage, buttonPressedJoinLobbyAlpha = graphics.LoadImageFromFile(&content, "assets/join_lobby_button_pressed.png")
-
-	buttonConfirmImage, buttonConfirmAlpha = graphics.LoadImageFromFile(&content, "assets/confirm_button.png")
-	buttonPressedConfirmImage, buttonPressedConfirmAlpha = graphics.LoadImageFromFile(&content, "assets/confirm_button_pressed.png")
-
-	buttonCancelImage, buttonCancelAlpha = graphics.LoadImageFromFile(&content, "assets/cancel_button.png")
-	buttonPressedCancelImage, buttonPressedCancelAlpha = graphics.LoadImageFromFile(&content, "assets/cancel_button_pressed.png")
-
-	buttonPassImage, buttonPassAlpha = graphics.LoadImageFromFile(&content, "assets/pass_button.png")
-
-	buttonHeartsImage, buttonHeartsAlpha = graphics.LoadImageFromFile(&content, "assets/hearts_button.png")
-	buttonPressedHeartsImage, buttonPressedHeartsAlpha = graphics.LoadImageFromFile(&content, "assets/hearts_button_pressed.png")
-
-	buttonDiamondsImage, buttonDiamondsAlpha = graphics.LoadImageFromFile(&content, "assets/diamonds_button.png")
-	buttonPressedDiamondsImage, buttonPressedDiamondsAlpha = graphics.LoadImageFromFile(&content, "assets/diamonds_button_pressed.png")
-
-	buttonClubsImage, buttonClubsAlpha = graphics.LoadImageFromFile(&content, "assets/clubs_button.png")
-	buttonPressedClubsImage, buttonPressedClubsAlpha = graphics.LoadImageFromFile(&content, "assets/clubs_button_pressed.png")
-
-	buttonSpadesImage, buttonSpadesAlpha = graphics.LoadImageFromFile(&content, "assets/spades_button.png")
-	buttonPressedSpadesImage, buttonPressedSpadesAlpha = graphics.LoadImageFromFile(&content, "assets/spades_button_pressed.png")
 
 	initCardImages()
 }
@@ -134,7 +63,7 @@ const (
 	CardPlay
 )
 
-type Server struct {
+type server struct {
 	server    connection.Server
 	connected bool
 	lobbyId   int
@@ -148,7 +77,7 @@ type TurnInfo struct {
 type Game struct {
 	inited          bool
 	debug           bool
-	server          Server
+	server          server
 	id              int
 	mode            mode
 	lobbyId         int
@@ -158,7 +87,6 @@ type Game struct {
 	teams           [2]Team
 	activePlayer    PlayPos
 	trumpDrawPlayer PlayPos
-	touchIDs        []ebiten.TouchID
 	buttonNewLobby  Button
 	buttonJoinLobby Button
 	lobbyRequestStr string
@@ -177,59 +105,8 @@ type Game struct {
 }
 
 func (g *Game) initOverlay() {
-	var vertices []ebiten.Vertex
-	vertices = append(vertices, ebiten.Vertex{
-		DstX:   0,
-		DstY:   0,
-		SrcX:   float32(0),
-		SrcY:   float32(0),
-		ColorR: float32(1),
-		ColorG: float32(1),
-		ColorB: float32(1),
-		ColorA: 1,
-	})
-	vertices = append(vertices, ebiten.Vertex{
-		DstX:   screenWidth,
-		DstY:   0,
-		SrcX:   float32(1),
-		SrcY:   float32(0),
-		ColorR: float32(1),
-		ColorG: float32(1),
-		ColorB: float32(1),
-		ColorA: 1,
-	})
-	vertices = append(vertices, ebiten.Vertex{
-		DstX:   screenWidth,
-		DstY:   screenHeight,
-		SrcX:   float32(1),
-		SrcY:   float32(1),
-		ColorR: float32(1),
-		ColorG: float32(1),
-		ColorB: float32(1),
-		ColorA: 1,
-	})
-	vertices = append(vertices, ebiten.Vertex{
-		DstX:   0,
-		DstY:   screenHeight,
-		SrcX:   float32(0),
-		SrcY:   float32(1),
-		ColorR: float32(1),
-		ColorG: float32(1),
-		ColorB: float32(1),
-		ColorA: 1,
-	})
-
-	indices := graphics.GenIndices(len(vertices))
-	g.overlay = *graphics.CreateShape(overlayImage, vertices, indices, 0, 0, 0, 0, 0, 0)
+	g.overlay = *graphics.CreateRectangle(overlayImage, screenWidth, screenHeight, 0, 0, 0, 0, 0, 0)
 }
-
-// *****
-// FIXME:
-// x start on the correct player (ie one after trump pickup player)
-// - double check that scoring is working as intended
-// - fix next trump chooser skipping players sometimes??
-// - test that both picking up trump AND choosing trump suit work
-// *****
 
 func (g *Game) init() {
 	defer func() {
@@ -271,47 +148,47 @@ func (g *Game) init() {
 	g.trumpDrawPlayer = 0
 	g.activePlayer = g.GetNextPlayerByAbsPos(g.trumpDrawPlayer).AbsPos
 
-	g.buttonNewLobby = *CreateButton(g, newLobby, buttonNewLobbyImage, buttonNewLobbyAlpha, buttonPressedNewLobbyImage, buttonPressedNewLobbyAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonNewLobby = *CreateButton(g, newLobby, "assets/new_lobby_button.png", "assets/new_lobby_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	newLobbyWidth := g.buttonNewLobby.sprite.ImageWidth
 	newLobbyX := screenWidth/2 - newLobbyWidth/2 - 80
 	g.buttonNewLobby.SetLoc(newLobbyX, g.buttonNewLobby.sprite.Y)
 
-	g.buttonJoinLobby = *CreateButton(g, joinLobby, buttonJoinLobbyImage, buttonJoinLobbyAlpha, buttonPressedJoinLobbyImage, buttonPressedJoinLobbyAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonJoinLobby = *CreateButton(g, joinLobby, "assets/join_lobby_button.png", "assets/join_lobby_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	joinLobbyWidth := g.buttonJoinLobby.sprite.ImageWidth
 	joinLobbyX := screenWidth/2 - joinLobbyWidth/2 + 80
 	g.buttonJoinLobby.SetLoc(joinLobbyX, g.buttonJoinLobby.sprite.Y)
 
-	g.buttonConfirm = *CreateButton(g, confirmTrump, buttonConfirmImage, buttonConfirmAlpha, buttonPressedConfirmImage, buttonPressedConfirmAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonConfirm = *CreateButton(g, confirmTrump, "assets/confirm_button.png", "assets/confirm_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	confirmWidth := g.buttonConfirm.sprite.ImageWidth
 	confirmX := screenWidth/2 - confirmWidth/2 + 80
 	g.buttonConfirm.SetLoc(confirmX, g.buttonConfirm.sprite.Y)
 
-	g.buttonCancel = *CreateButton(g, passTrump, buttonCancelImage, buttonCancelAlpha, buttonPressedCancelImage, buttonPressedCancelAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonCancel = *CreateButton(g, passTrump, "assets/cancel_button.png", "assets/cancel_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	cancelWidth := g.buttonCancel.sprite.ImageWidth
 	cancelX := screenWidth/2 - cancelWidth/2 - 80
 	g.buttonCancel.SetLoc(cancelX, g.buttonCancel.sprite.Y)
 
-	g.buttonPass = *CreateButton(g, passTrump, buttonPassImage, buttonPassAlpha, buttonPassImage, buttonPassAlpha, 5, 0, 0, 0)
+	g.buttonPass = *CreateButton(g, passTrump, "assets/pass_button.png", "assets/pass_button.png", 5, 0, 0, 0)
 	passWidth := g.buttonPass.sprite.ImageWidth
 	passHeight := g.buttonPass.sprite.ImageHeight
 	passX := screenWidth/2 - passWidth/2
 	passY := screenHeight/2 - passHeight/2
 	g.buttonPass.SetLoc(passX, passY)
 
-	g.buttonHearts = *CreateButton(g, heartsTrump, buttonHeartsImage, buttonHeartsAlpha, buttonPressedHeartsImage, buttonPressedHeartsAlpha, 4, 0, screenHeight/2-140, 0)
+	g.buttonHearts = *CreateButton(g, heartsTrump, "assets/hearts_button.png", "assets/hearts_button_pressed.png", 4, 0, screenHeight/2-140, 0)
 	heartsWidth := g.buttonHearts.sprite.ImageWidth
 	heartsX := screenWidth/2 - heartsWidth/2 - 140
 	g.buttonHearts.SetLoc(heartsX, g.buttonHearts.sprite.Y)
 
-	g.buttonDiamonds = *CreateButton(g, diamondsTrump, buttonDiamondsImage, buttonDiamondsAlpha, buttonPressedDiamondsImage, buttonPressedDiamondsAlpha, 4, 0, screenHeight/2-140, 0)
+	g.buttonDiamonds = *CreateButton(g, diamondsTrump, "assets/diamonds_button.png", "assets/diamonds_button_pressed.png", 4, 0, screenHeight/2-140, 0)
 	diamondsWidth := g.buttonDiamonds.sprite.ImageWidth
 	diamondsX := screenWidth/2 - diamondsWidth/2 + 140
 	g.buttonDiamonds.SetLoc(diamondsX, g.buttonDiamonds.sprite.Y)
 
-	g.buttonClubs = *CreateButton(g, clubsTrump, buttonClubsImage, buttonClubsAlpha, buttonPressedClubsImage, buttonPressedClubsAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonClubs = *CreateButton(g, clubsTrump, "assets/clubs_button.png", "assets/clubs_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	g.buttonClubs.SetLoc(heartsX, g.buttonClubs.sprite.Y)
 
-	g.buttonSpades = *CreateButton(g, spadesTrump, buttonSpadesImage, buttonSpadesAlpha, buttonPressedSpadesImage, buttonPressedSpadesAlpha, 4, 0, screenHeight/2+80, 0)
+	g.buttonSpades = *CreateButton(g, spadesTrump, "assets/spades_button.png", "assets/spades_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	g.buttonSpades.SetLoc(diamondsX, g.buttonSpades.sprite.Y)
 
 	g.initOverlay()
@@ -935,49 +812,7 @@ func (g *Game) DrawLobbyRequestInput(screen *ebiten.Image) {
 	text.Draw(screen, lobbyRequestInputTxt, fontFace, &lobbyRequestInputTxtOp)
 
 	if g.txtInputBox == nil {
-		var vertices []ebiten.Vertex
-		vertices = append(vertices, ebiten.Vertex{
-			DstX:   0,
-			DstY:   0,
-			SrcX:   float32(0),
-			SrcY:   float32(0),
-			ColorR: float32(1),
-			ColorG: float32(1),
-			ColorB: float32(1),
-			ColorA: 1,
-		})
-		vertices = append(vertices, ebiten.Vertex{
-			DstX:   float32(lobbyRequestInputTxtW) + 10,
-			DstY:   0,
-			SrcX:   float32(1),
-			SrcY:   float32(0),
-			ColorR: float32(1),
-			ColorG: float32(1),
-			ColorB: float32(1),
-			ColorA: 1,
-		})
-		vertices = append(vertices, ebiten.Vertex{
-			DstX:   float32(lobbyRequestInputTxtW) + 10,
-			DstY:   float32(lobbyRequestInputTxtH) + 10,
-			SrcX:   float32(1),
-			SrcY:   float32(1),
-			ColorR: float32(1),
-			ColorG: float32(1),
-			ColorB: float32(1),
-			ColorA: 1,
-		})
-		vertices = append(vertices, ebiten.Vertex{
-			DstX:   0,
-			DstY:   float32(lobbyRequestInputTxtH) + 10,
-			SrcX:   float32(0),
-			SrcY:   float32(1),
-			ColorR: float32(1),
-			ColorG: float32(1),
-			ColorB: float32(1),
-			ColorA: 1,
-		})
-		indices := graphics.GenIndices(len(vertices))
-		g.txtInputBox = graphics.CreateShape(txtInputBoxImage, vertices, indices, int(screenWidth/2-lobbyRequestInputTxtW/2-5), int(screenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
+		g.txtInputBox = graphics.CreateRectangle(txtInputBoxImage, int(lobbyRequestInputTxtW)+10, int(lobbyRequestInputTxtH)+10, int(screenWidth/2-lobbyRequestInputTxtW/2-5), int(screenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
 		println(g.txtInputBox.X, g.txtInputBox.Y)
 	}
 	g.txtInputBox.Draw(screen)

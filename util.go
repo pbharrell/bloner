@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/pbharrell/bloner-server/connection"
+	"github.com/pbharrell/bloner/graphics"
 )
 
 func newLobby(g *Game) {
@@ -74,6 +75,11 @@ func clubsTrump(g *Game) {
 func spadesTrump(g *Game) {
 	g.SendTurnTrumpPick(int8(Spades))
 	g.trick.clear()
+}
+
+func CreateSpriteFromAssetPath(assetPath string, scale float64, x int, y int, angle int, vx int, vy int, vangle int) *graphics.Sprite {
+	image, alphaImage := graphics.LoadImageFromFile(&content, assetPath)
+	return graphics.CreateSprite(image, alphaImage, scale, x, y, angle, 0, 0, 0)
 }
 
 func GetRelPos(clientAbsPos PlayPos, absPos PlayPos) PlayPos {

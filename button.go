@@ -1,8 +1,6 @@
 package main
 
 import (
-	"image"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/pbharrell/bloner/graphics"
 )
@@ -18,12 +16,12 @@ type Button struct {
 	isPressed     bool
 }
 
-func CreateButton(game *Game, pressCallback ButtonPressCallback, image *ebiten.Image, alphaImage *image.Alpha, pressedImage *ebiten.Image, pressedAlphaImage *image.Alpha, scale float64, x int, y int, angle int) *Button {
+func CreateButton(game *Game, pressCallback ButtonPressCallback, spritePath string, pressedSpritePath string, scale float64, x int, y int, angle int) *Button {
 	return &Button{
 		game:          game,
 		pressCallback: pressCallback,
-		sprite:        *graphics.CreateSprite(image, alphaImage, scale, x, y, angle, 0, 0, 0),
-		pressedSprite: *graphics.CreateSprite(pressedImage, pressedAlphaImage, scale, x, y, angle, 0, 0, 0),
+		sprite:        *CreateSpriteFromAssetPath(spritePath, scale, x, y, angle, 0, 0, 0),
+		pressedSprite: *CreateSpriteFromAssetPath(pressedSpritePath, scale, x, y, angle, 0, 0, 0),
 		isHovered:     false,
 		isPressed:     false,
 	}

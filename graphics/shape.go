@@ -33,6 +33,65 @@ func GenIndices(numVertices int) []uint16 {
 	return indices
 }
 
+func CreateRectangle(image *ebiten.Image, width int, height int, x int, y int, angle int, vx int, vy int, vangle int) *Shape {
+	var vertices []ebiten.Vertex
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   float32(x),
+		DstY:   float32(y),
+		SrcX:   float32(0),
+		SrcY:   float32(0),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   float32(x + width),
+		DstY:   float32(y),
+		SrcX:   float32(1),
+		SrcY:   float32(0),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   float32(x + width),
+		DstY:   float32(y + height),
+		SrcX:   float32(1),
+		SrcY:   float32(1),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+	vertices = append(vertices, ebiten.Vertex{
+		DstX:   float32(x),
+		DstY:   float32(y + height),
+		SrcX:   float32(0),
+		SrcY:   float32(1),
+		ColorR: float32(1),
+		ColorG: float32(1),
+		ColorB: float32(1),
+		ColorA: 1,
+	})
+
+	indices := GenIndices(len(vertices))
+
+	return &Shape{
+		Image:    image,
+		Vertices: vertices,
+		Indices:  indices,
+		X:        x,
+		Y:        y,
+		Angle:    angle,
+		Vx:       vx,
+		Vy:       vy,
+		Vangle:   vangle,
+		Visible:  true,
+	}
+}
+
 func CreateShape(image *ebiten.Image, vertices []ebiten.Vertex, indices []uint16, x int, y int, angle int, vx int, vy int, vangle int) *Shape {
 	translatedVertices := vertices
 	for i := range len(translatedVertices) {
