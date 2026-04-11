@@ -89,7 +89,7 @@ func CreatePlayer(id int, team teamColor, handSize int, relPos PlayPos, scale fl
 	tricks := make([]*Card, tricksWon)
 	for i := range tricks {
 		// Card suit and number are placholders
-		tricks[i] = CreateCard(Spades, Ace, id, .35, 0, 0, 0 /* faceDown */, true)
+		tricks[i] = CreateCard(Spades, Ace, id, .1, 0, 0, 0 /* faceDown */, true)
 	}
 
 	player := Player{
@@ -127,7 +127,7 @@ func (p *Player) DealHand(scale float64, drawPile *DrawPile, handSize int, faceD
 				p.Cards[i].PlayerId = p.Id
 			}
 		} else {
-			p.Cards[i] = CreateCard(Spades, Ace, p.Id, .35, 0, 0, 0, faceDown)
+			p.Cards[i] = CreateCard(Spades, Ace, p.Id, .1, 0, 0, 0, faceDown)
 		}
 	}
 }
@@ -143,7 +143,7 @@ func (p *Player) Decode(teamColor teamColor, playerNum uint8, playerState connec
 	// Face down value should be overridden by `ArrangeHand` later
 	println("Decoding player with id:", playerState.PlayerId)
 	p.Id = playerState.PlayerId
-	p.Cards = DecodeCardPile(playerState.Cards, playerState.PlayerId, .35 /*faceDown*/, true)
+	p.Cards = DecodeCardPile(playerState.Cards, playerState.PlayerId, .1 /*faceDown*/, true)
 	p.AbsPos = PlayPos(uint8(teamColor) + playerNum*2)
 }
 
@@ -198,7 +198,7 @@ func (p *Player) DiscardEncoded(card connection.Card, clientId int) *Card {
 }
 
 func (p *Player) WinTrick(clientId int) {
-	p.wonTricks = append(p.wonTricks, CreateCard(Spades, Ace, p.Id, .35, 0, 0, 0, true))
+	p.wonTricks = append(p.wonTricks, CreateCard(Spades, Ace, p.Id, .1, 0, 0, 0, true))
 	p.ArrangeTricks()
 }
 

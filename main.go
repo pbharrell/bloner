@@ -127,7 +127,7 @@ func (g *Game) init() {
 
 	g.fontSource = fontSource
 
-	g.drawPile.Sprite = *graphics.CreateSprite(blankCardImage, blankCardAlphaImage, .35, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
+	g.drawPile.Sprite = *graphics.CreateSprite(blankCardImage, blankCardAlphaImage, .1, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
 	g.drawPile.Sprite.X = screenWidth/2 - g.drawPile.Sprite.ImageWidth - 20
 	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
 	g.drawPile.shuffleDrawPile()
@@ -136,14 +136,14 @@ func (g *Game) init() {
 	g.teams[Red].teamColor = Red
 	g.teams[Black].points = 0
 	g.teams[Red].points = 0
-	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .35, &g.drawPile /* faceDown */, false, 0)
-	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .35, &g.drawPile /* faceDown */, false, 0)
-	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .35, &g.drawPile /* faceDown */, false, 0)
-	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .35, &g.drawPile /* faceDown */, false, 0)
+	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .1, &g.drawPile /* faceDown */, false, 0)
+	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .1, &g.drawPile /* faceDown */, false, 0)
+	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .1, &g.drawPile /* faceDown */, false, 0)
+	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .1, &g.drawPile /* faceDown */, false, 0)
 
 	g.trick.X = screenWidth/2 + 20
 	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
-	g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
+	g.trick.playCard(g.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
 
 	g.trumpDrawPlayer = 0
 	g.activePlayer = g.GetNextPlayerByAbsPos(g.trumpDrawPlayer).AbsPos
@@ -312,7 +312,7 @@ func (g *Game) DealCards() {
 		for j := range g.teams[i].players {
 			if len(g.teams[i].players[j].Cards) <= 0 {
 				faceDown := g.id != g.teams[i].players[j].Id
-				g.teams[i].players[j].DealHand(.35, &g.drawPile, 5, faceDown)
+				g.teams[i].players[j].DealHand(.1, &g.drawPile, 5, faceDown)
 			}
 		}
 	}
@@ -569,7 +569,7 @@ func (g *Game) UpdateGameActive() {
 
 		g.DealCards()
 
-		g.trick.playCard(g.drawPile.drawCard(.35, screenWidth/2+20, 0, 0 /*faceDown */, false))
+		g.trick.playCard(g.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
 		g.trumpDrawPlayer = (g.trumpDrawPlayer + 1) % 4
 		g.activePlayer += g.trumpDrawPlayer
 
@@ -634,7 +634,7 @@ func (g *Game) UpdateClientTurn() {
 			// Only want to add a card to hand from draw pile if debugging
 			if false || g.debug {
 				if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
-					card := g.drawPile.drawCard(.35, 0, 0, 0 /* faceDown */, false)
+					card := g.drawPile.drawCard(.1, 0, 0, 0 /* faceDown */, false)
 					if card != nil {
 						card.PlayerId = client.Id
 						client.Cards = append(client.Cards, card)

@@ -66,7 +66,7 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 	case connection.CardPlay:
 		if turnInfo.PlayerId != g.id {
 			turnPlayer := g.GetPlayerById(turnInfo.PlayerId)
-			cardPlayed := CreateCard(Suit(turnInfo.CardPlay.Suit), Number(turnInfo.CardPlay.Number), turnInfo.PlayerId, .35, 0, 0, 0, true)
+			cardPlayed := CreateCard(Suit(turnInfo.CardPlay.Suit), Number(turnInfo.CardPlay.Number), turnInfo.PlayerId, .1, 0, 0, 0, true)
 			g.PlayCard(turnPlayer.Id, turnPlayer.GetCardInd(cardPlayed))
 			g.activePlayer = g.GetNextPlayerById(turnInfo.PlayerId).AbsPos
 		}
