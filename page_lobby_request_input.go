@@ -21,7 +21,7 @@ type LobbyRequestInputPage struct {
 func CreateLobbyRequestInputPage(game *Game) *LobbyRequestInputPage {
 	lobbyRequestStr := "Id of lobby you'd like to join:"
 
-	overlay := *graphics.CreateRectangle(OverlayImage, ScreenWidth, ScreenHeight, 0, 0, 0, 0, 0, 0)
+	overlay := *graphics.CreateRectangle(overlayImage, screenWidth, screenHeight, 0, 0, 0, 0, 0, 0)
 
 	fontFace := text.GoTextFace{
 		Source: game.GetFontSource(),
@@ -31,9 +31,9 @@ func CreateLobbyRequestInputPage(game *Game) *LobbyRequestInputPage {
 	txtOp := text.DrawOptions{}
 
 	lobbyRequestInputTxtW, lobbyRequestInputTxtH := text.Measure(lobbyRequestStr, &fontFace, 0)
-	txtOp.GeoM.Translate(ScreenWidth/2-lobbyRequestInputTxtW/2, ScreenHeight/2-lobbyRequestInputTxtH)
+	txtOp.GeoM.Translate(screenWidth/2-lobbyRequestInputTxtW/2, screenHeight/2-lobbyRequestInputTxtH)
 
-	txtInputBox := graphics.CreateRectangle(TxtInputBoxImage, int(lobbyRequestInputTxtW)+10, int(lobbyRequestInputTxtH)+10, int(ScreenWidth/2-lobbyRequestInputTxtW/2-5), int(ScreenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
+	txtInputBox := graphics.CreateRectangle(txtInputBoxImage, int(lobbyRequestInputTxtW)+10, int(lobbyRequestInputTxtH)+10, int(screenWidth/2-lobbyRequestInputTxtW/2-5), int(screenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
 
 	p := &LobbyRequestInputPage{
 		game:            game,
@@ -44,14 +44,14 @@ func CreateLobbyRequestInputPage(game *Game) *LobbyRequestInputPage {
 		overlay:         overlay,
 	}
 
-	p.buttonBack = CreateButton(p, game, newLobby, "assets/new_lobby_button.png", "assets/new_lobby_button_pressed.png", 4, 0, ScreenHeight/2+80, 0)
+	p.buttonBack = CreateButton(p, game, newLobby, "assets/new_lobby_button.png", "assets/new_lobby_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	newLobbyWidth := p.buttonBack.sprite.ImageWidth
-	newLobbyX := ScreenWidth/2 - newLobbyWidth/2 - 80
+	newLobbyX := screenWidth/2 - newLobbyWidth/2 - 80
 	p.buttonBack.SetLoc(newLobbyX, p.buttonBack.sprite.Y)
 
-	p.buttonJoinLobby = CreateButton(p, game, joinLobby, "assets/join_lobby_button.png", "assets/join_lobby_button_pressed.png", 4, 0, ScreenHeight/2+80, 0)
+	p.buttonJoinLobby = CreateButton(p, game, joinLobby, "assets/join_lobby_button.png", "assets/join_lobby_button_pressed.png", 4, 0, screenHeight/2+80, 0)
 	joinLobbyWidth := p.buttonJoinLobby.sprite.ImageWidth
-	joinLobbyX := ScreenWidth/2 - joinLobbyWidth/2 + 80
+	joinLobbyX := screenWidth/2 - joinLobbyWidth/2 + 80
 	p.buttonJoinLobby.SetLoc(joinLobbyX, p.buttonJoinLobby.sprite.Y)
 
 	return p
@@ -120,11 +120,11 @@ func (p *LobbyRequestInputPage) Draw(screen *ebiten.Image) {
 	}
 
 	lobbyRequestInputTxtW, lobbyRequestInputTxtH := text.Measure(lobbyRequestInputTxt, fontFace, 0)
-	lobbyRequestInputTxtOp.GeoM.Translate(ScreenWidth/2-lobbyRequestInputTxtW/2, ScreenHeight/2-lobbyRequestInputTxtH)
+	lobbyRequestInputTxtOp.GeoM.Translate(screenWidth/2-lobbyRequestInputTxtW/2, screenHeight/2-lobbyRequestInputTxtH)
 	text.Draw(screen, lobbyRequestInputTxt, fontFace, &lobbyRequestInputTxtOp)
 
 	if p.txtInputBox == nil {
-		p.txtInputBox = graphics.CreateRectangle(TxtInputBoxImage, int(lobbyRequestInputTxtW)+10, int(lobbyRequestInputTxtH)+10, int(ScreenWidth/2-lobbyRequestInputTxtW/2-5), int(ScreenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
+		p.txtInputBox = graphics.CreateRectangle(txtInputBoxImage, int(lobbyRequestInputTxtW)+10, int(lobbyRequestInputTxtH)+10, int(screenWidth/2-lobbyRequestInputTxtW/2-5), int(screenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
 		println(p.txtInputBox.X, p.txtInputBox.Y)
 	}
 	p.txtInputBox.Draw(screen)

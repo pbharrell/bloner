@@ -69,6 +69,11 @@ type server struct {
 	lobbyId   int
 }
 
+type Page interface {
+	Update()
+	Draw(screen *ebiten.Image)
+}
+
 type TurnInfo struct {
 	inited   bool
 	turnInfo connection.TurnInfo
@@ -90,18 +95,11 @@ type Game struct {
 	buttonNewLobby  Button
 	buttonJoinLobby Button
 	lobbyRequestStr string
-	buttonConfirm   Button
-	buttonCancel    Button
-	buttonPass      Button
-	buttonHearts    Button
-	buttonDiamonds  Button
-	buttonClubs     Button
-	buttonSpades    Button
 	overlay         graphics.Shape
-	txtInputBox     *graphics.Shape
 	drawPile        DrawPile
 	trick           Trick
 	turnInfo        TurnInfo
+	pageStack       []Page
 }
 
 func (g *Game) initOverlay() {
@@ -148,49 +146,6 @@ func (g *Game) init() {
 	g.trumpDrawPlayer = 0
 	g.activePlayer = g.GetNextPlayerByAbsPos(g.trumpDrawPlayer).AbsPos
 
-	g.buttonNewLobby = *CreateButton(g, newLobby, "assets/new_lobby_button.png", "assets/new_lobby_button_pressed.png", 4, 0, screenHeight/2+80, 0)
-	newLobbyWidth := g.buttonNewLobby.sprite.ImageWidth
-	newLobbyX := screenWidth/2 - newLobbyWidth/2 - 80
-	g.buttonNewLobby.SetLoc(newLobbyX, g.buttonNewLobby.sprite.Y)
-
-	g.buttonJoinLobby = *CreateButton(g, joinLobby, "assets/join_lobby_button.png", "assets/join_lobby_button_pressed.png", 4, 0, screenHeight/2+80, 0)
-	joinLobbyWidth := g.buttonJoinLobby.sprite.ImageWidth
-	joinLobbyX := screenWidth/2 - joinLobbyWidth/2 + 80
-	g.buttonJoinLobby.SetLoc(joinLobbyX, g.buttonJoinLobby.sprite.Y)
-
-	g.buttonConfirm = *CreateButton(g, confirmTrump, "assets/confirm_button.png", "assets/confirm_button_pressed.png", 4, 0, screenHeight/2+80, 0)
-	confirmWidth := g.buttonConfirm.sprite.ImageWidth
-	confirmX := screenWidth/2 - confirmWidth/2 + 80
-	g.buttonConfirm.SetLoc(confirmX, g.buttonConfirm.sprite.Y)
-
-	g.buttonCancel = *CreateButton(g, passTrump, "assets/cancel_button.png", "assets/cancel_button_pressed.png", 4, 0, screenHeight/2+80, 0)
-	cancelWidth := g.buttonCancel.sprite.ImageWidth
-	cancelX := screenWidth/2 - cancelWidth/2 - 80
-	g.buttonCancel.SetLoc(cancelX, g.buttonCancel.sprite.Y)
-
-	g.buttonPass = *CreateButton(g, passTrump, "assets/pass_button.png", "assets/pass_button.png", 5, 0, 0, 0)
-	passWidth := g.buttonPass.sprite.ImageWidth
-	passHeight := g.buttonPass.sprite.ImageHeight
-	passX := screenWidth/2 - passWidth/2
-	passY := screenHeight/2 - passHeight/2
-	g.buttonPass.SetLoc(passX, passY)
-
-	g.buttonHearts = *CreateButton(g, heartsTrump, "assets/hearts_button.png", "assets/hearts_button_pressed.png", 4, 0, screenHeight/2-140, 0)
-	heartsWidth := g.buttonHearts.sprite.ImageWidth
-	heartsX := screenWidth/2 - heartsWidth/2 - 140
-	g.buttonHearts.SetLoc(heartsX, g.buttonHearts.sprite.Y)
-
-	g.buttonDiamonds = *CreateButton(g, diamondsTrump, "assets/diamonds_button.png", "assets/diamonds_button_pressed.png", 4, 0, screenHeight/2-140, 0)
-	diamondsWidth := g.buttonDiamonds.sprite.ImageWidth
-	diamondsX := screenWidth/2 - diamondsWidth/2 + 140
-	g.buttonDiamonds.SetLoc(diamondsX, g.buttonDiamonds.sprite.Y)
-
-	g.buttonClubs = *CreateButton(g, clubsTrump, "assets/clubs_button.png", "assets/clubs_button_pressed.png", 4, 0, screenHeight/2+80, 0)
-	g.buttonClubs.SetLoc(heartsX, g.buttonClubs.sprite.Y)
-
-	g.buttonSpades = *CreateButton(g, spadesTrump, "assets/spades_button.png", "assets/spades_button_pressed.png", 4, 0, screenHeight/2+80, 0)
-	g.buttonSpades.SetLoc(diamondsX, g.buttonSpades.sprite.Y)
-
 	g.initOverlay()
 
 	ctx := context.Background()
@@ -210,6 +165,8 @@ func (g *Game) init() {
 
 	g.turnInfo.inited = false
 
+	g.pageStack = append(g.pageStack, CreateLobbyTypeSelectPage(g))
+
 	go g.server.server.Listen()
 }
 
@@ -217,6 +174,14 @@ func (g *Game) debugPrintln(msg string) {
 	if g.debug {
 		println(msg)
 	}
+}
+
+func (g *Game) PushPage(p Page) {
+	g.pageStack = append(g.pageStack, p)
+}
+
+func (g *Game) PopPage(p Page) {
+	g.pageStack = g.pageStack[:len(g.pageStack)-2]
 }
 
 func (g *Game) GetPlayerByAbsPos(absPos PlayPos) *Player {
@@ -441,484 +406,90 @@ func (g *Game) Update() error {
 		}
 	}
 
-	switch g.mode {
-	case LobbyTypeSelect:
-		g.UpdateLobbyTypeSelect()
-		break
-	case LobbyRequestInput:
-		g.UpdateLobbyRequestInput()
-		break
-	case LobbyRequested:
-		break
-	case LobbyAssigned:
-		break
-	case GameActive:
-		g.UpdateGameActive()
-		break
+	if len(g.pageStack) == 0 {
+		panic("Ran `Game.Update()` with an empty page stack!")
 	}
+	g.pageStack[len(g.pageStack)-1].Update()
 
 	return nil
-}
-
-func (g *Game) UpdateLobbyTypeSelect() {
-	x, y := ebiten.CursorPosition()
-	mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-
-	g.buttonNewLobby.Update(x, y, mouseButtonPressed)
-	g.buttonJoinLobby.Update(x, y, mouseButtonPressed)
-}
-
-func (g *Game) UpdateLobbyRequestInput() {
-	x, y := ebiten.CursorPosition()
-	mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-
-	g.buttonNewLobby.Update(x, y, mouseButtonPressed)
-	g.buttonJoinLobby.Update(x, y, mouseButtonPressed)
-
-	if len(g.lobbyRequestStr) < 22 {
-		if inpututil.IsKeyJustPressed(ebiten.Key0) {
-			g.lobbyRequestStr += "0"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key1) {
-			g.lobbyRequestStr += "1"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key2) {
-			g.lobbyRequestStr += "2"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key3) {
-			g.lobbyRequestStr += "3"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key4) {
-			g.lobbyRequestStr += "4"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key5) {
-			g.lobbyRequestStr += "5"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key6) {
-			g.lobbyRequestStr += "6"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key7) {
-			g.lobbyRequestStr += "7"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key8) {
-			g.lobbyRequestStr += "8"
-		}
-		if inpututil.IsKeyJustPressed(ebiten.Key9) {
-			g.lobbyRequestStr += "9"
-		}
-	}
-
-	if len(g.lobbyRequestStr) > 0 {
-		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-			g.lobbyRequestStr = g.lobbyRequestStr[:len(g.lobbyRequestStr)-1]
-		}
-	}
-}
-
-func (g *Game) UpdateGameActive() {
-	client := g.GetClient()
-	if g.activePlayer == client.AbsPos {
-		g.UpdateClientTurn()
-	}
-
-	if len(g.trick.Pile) >= 4 {
-		highestCard := GetHighestCardFromPile(g.trick.Pile, g.trick.LeadSuit, *g.trumpSuit)
-		println("Highest card returned from pile:", SuitToString(highestCard.Suit), NumberToString(highestCard.Number))
-		println("Highest card player id:", highestCard.PlayerId)
-		g.GetPlayerById(highestCard.PlayerId).WinTrick(g.id)
-		g.trick.clear()
-	}
-
-	outOfCards := true
-	for _, team := range g.teams {
-		for _, player := range team.players {
-			if len(player.Cards) > 0 {
-				outOfCards = false
-			}
-		}
-	}
-
-	if outOfCards {
-		teamBlackTricks := 0
-		teamRedTricks := 0
-		for i := range g.teams {
-			for j, player := range g.teams[i].players {
-				if i == 0 {
-					teamBlackTricks += len(player.wonTricks)
-				} else if i == 1 {
-					teamRedTricks += len(player.wonTricks)
-				}
-
-				g.teams[i].players[j].wonTricks = []*Card{}
-			}
-		}
-
-		if teamBlackTricks > teamRedTricks {
-			if teamBlackTricks == 5 {
-				g.teams[Black].points += 2
-			} else {
-				g.teams[Black].points++
-			}
-		} else if teamBlackTricks < teamRedTricks {
-			if teamRedTricks == 5 {
-				g.teams[Red].points += 2
-			} else {
-				g.teams[Red].points++
-			}
-		}
-
-		g.DealCards()
-
-		g.trick.playCard(g.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
-		g.trumpDrawPlayer = (g.trumpDrawPlayer + 1) % 4
-		g.activePlayer += g.trumpDrawPlayer
-
-		if g.activePlayer == client.AbsPos {
-			g.SendStateResponse()
-		}
-	}
-}
-
-func (g *Game) UpdateClientTurn() {
-	client := g.GetClient()
-	if len(client.Cards) > 5 {
-		x, y := ebiten.CursorPosition()
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(client.Cards) - 1; i >= 0; i-- {
-				card := client.Cards[i]
-				if card.Sprite.In(x, y) {
-					discarded := client.Cards[i]
-					g.drawPile.discard(discarded)
-					if client.Discard(i, g.id) != discarded {
-						println("Failed to discard card from hand!! Should not be here.")
-					}
-
-					g.SendTurnTrumpDiscard(discarded)
-					break
-				}
-			}
-		}
-
-	} else if g.IsPickingTrump() {
-		x, y := ebiten.CursorPosition()
-		mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-
-		if g.passCounter < 4 {
-			g.buttonConfirm.Update(x, y, mouseButtonPressed)
-			g.buttonCancel.Update(x, y, mouseButtonPressed)
-		} else {
-			g.buttonHearts.Update(x, y, mouseButtonPressed)
-			g.buttonDiamonds.Update(x, y, mouseButtonPressed)
-			g.buttonClubs.Update(x, y, mouseButtonPressed)
-			g.buttonSpades.Update(x, y, mouseButtonPressed)
-			if g.passCounter < 7 {
-				g.buttonPass.Update(x, y, mouseButtonPressed)
-			}
-		}
-
-	} else {
-		x, y := ebiten.CursorPosition()
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-
-			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(client.Cards) - 1; i >= 0; i-- {
-				card := client.Cards[i]
-				if card.Sprite.In(x, y) {
-					g.PlayCard(g.id, i)
-					g.SendTurnCardPlay(card)
-					break
-				}
-			}
-
-			// Only want to add a card to hand from draw pile if debugging
-			if false || g.debug {
-				if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
-					card := g.drawPile.drawCard(.1, 0, 0, 0 /* faceDown */, false)
-					if card != nil {
-						card.PlayerId = client.Id
-						client.Cards = append(client.Cards, card)
-						client.ArrangeHand(client.Id)
-					}
-				}
-			}
-		}
-	}
-
-	g.drawPile.Update()
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{161, 191, 123, 1})
 
-	switch g.mode {
-	case LobbyTypeSelect:
-		g.DrawLobbyWait(screen)
-		break
-	case LobbyRequestInput:
-		g.DrawLobbyRequestInput(screen)
-	case LobbyRequested:
-		g.DrawLobbyRequested(screen)
-	case LobbyAssigned:
-		g.DrawLobbyAssigned(screen)
-		break
-	case GameActive:
-		g.DrawGameActive(screen)
-		break
+	if len(g.pageStack) == 0 {
+		panic("Ran `Game.Draw()` with an empty page stack!")
 	}
-}
-
-func (g *Game) DrawLobbyWait(screen *ebiten.Image) {
-	g.overlay.Draw(screen)
-
-	var (
-		lobbyWaitText = "Create new game or join existing?"
-		txtOp         = text.DrawOptions{}
-		op            = ebiten.DrawImageOptions{}
-	)
-
-	// Create font faces with different sizes as needed
-	fontFace := &text.GoTextFace{
-		Source: g.fontSource,
-		Size:   32,
-	}
-
-	txtW, txtH := text.Measure(lobbyWaitText, fontFace, 0)
-	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
-	text.Draw(screen, lobbyWaitText, fontFace, &txtOp)
-
-	g.buttonNewLobby.Draw(screen, op)
-	g.buttonJoinLobby.Draw(screen, op)
-}
-
-func (g *Game) DrawLobbyRequestInput(screen *ebiten.Image) {
-	g.overlay.Draw(screen)
-
-	var (
-		op                       = ebiten.DrawImageOptions{}
-		lobbyRequestInputTxt     = "Id of lobby you'd like to join:"
-		lobbyRequestInputTxtOp   = text.DrawOptions{}
-		lobbyRequstInputTxtBoxOp = text.DrawOptions{}
-	)
-
-	// Create font faces with different sizes as needed
-	fontFace := &text.GoTextFace{
-		Source: g.fontSource,
-		Size:   32,
-	}
-
-	lobbyRequestInputTxtW, lobbyRequestInputTxtH := text.Measure(lobbyRequestInputTxt, fontFace, 0)
-	lobbyRequestInputTxtOp.GeoM.Translate(screenWidth/2-lobbyRequestInputTxtW/2, screenHeight/2-lobbyRequestInputTxtH)
-	text.Draw(screen, lobbyRequestInputTxt, fontFace, &lobbyRequestInputTxtOp)
-
-	if g.txtInputBox == nil {
-		g.txtInputBox = graphics.CreateRectangle(txtInputBoxImage, int(lobbyRequestInputTxtW)+10, int(lobbyRequestInputTxtH)+10, int(screenWidth/2-lobbyRequestInputTxtW/2-5), int(screenHeight/2+lobbyRequestInputTxtH-5), 0, 0, 0, 0)
-		println(g.txtInputBox.X, g.txtInputBox.Y)
-	}
-	g.txtInputBox.Draw(screen)
-
-	lobbyRequstInputTxtBoxOp.GeoM.Translate(float64(g.txtInputBox.X+5), float64(g.txtInputBox.Y+5))
-	text.Draw(screen, g.lobbyRequestStr, fontFace, &lobbyRequstInputTxtBoxOp)
-
-	g.buttonNewLobby.Draw(screen, op)
-	g.buttonJoinLobby.Draw(screen, op)
-}
-
-func (g *Game) DrawLobbyRequested(screen *ebiten.Image) {
-	g.overlay.Draw(screen)
-
-	var (
-		lobbyRequestedText = "Lobby requested! Waiting for response..."
-		txtOp              = text.DrawOptions{}
-	)
-	// Create font faces with different sizes as needed
-	fontFace := &text.GoTextFace{
-		Source: g.fontSource,
-		Size:   32,
-	}
-
-	txtW, txtH := text.Measure(lobbyRequestedText, fontFace, 0)
-	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
-	text.Draw(screen, lobbyRequestedText, fontFace, &txtOp)
-}
-
-func (g *Game) DrawLobbyAssigned(screen *ebiten.Image) {
-	g.overlay.Draw(screen)
-
-	var (
-		lobbyAssignedText  = fmt.Sprintf("Lobby found with id: %v!", g.lobbyId)
-		lobbyWaitingText   = fmt.Sprintf("Waiting on more players...")
-		lobbyAssignedTxtOp = text.DrawOptions{}
-		lobbyWaitingTxtOp  = text.DrawOptions{}
-	)
-
-	// Create font faces with different sizes as needed
-	fontFace := &text.GoTextFace{
-		Source: g.fontSource,
-		Size:   32,
-	}
-
-	lobbyAssignedTxtW, lobbyAssignedTxtH := text.Measure(lobbyAssignedText, fontFace, 0)
-	lobbyWaitingTxtW, lobbyWaitingTxtH := text.Measure(lobbyWaitingText, fontFace, 0)
-	lobbyAssignedTxtOp.GeoM.Translate(screenWidth/2-lobbyAssignedTxtW/2, screenHeight/2-lobbyAssignedTxtH/2)
-	text.Draw(screen, lobbyAssignedText, fontFace, &lobbyAssignedTxtOp)
-
-	lobbyWaitingTxtOp.GeoM.Translate(screenWidth/2-lobbyWaitingTxtW/2, screenHeight/2+lobbyWaitingTxtH/2)
-	text.Draw(screen, lobbyWaitingText, fontFace, &lobbyWaitingTxtOp)
-}
-
-func (g *Game) DrawGameActive(screen *ebiten.Image) {
-	// Draw each sprite.
-	// DrawImage can be called many many times, but in the implementation,
-	// the actual draw call to GPU is very few since these calls satisfy
-	// some conditions e.g. all the rendering sources and targets are same.
-	// For more detail, see:
-	// https://pkg.go.dev/github.com/hajimehoshi/ebiten/v2#Image.DrawImage
-	op := ebiten.DrawImageOptions{}
-
-	if !g.IsPickingTrump() {
-		g.GetClient().Draw(screen, op)
-	}
-
-	teamScoreText := "Team %v score: %v"
-	// Create font faces with different sizes as needed
-	fontFace := &text.GoTextFace{
-		Source: g.fontSource,
-		Size:   24,
-	}
-
-	team1ScoreText := fmt.Sprintf(teamScoreText, 1, g.teams[Black].points)
-	txtOp := text.DrawOptions{}
-	txtW, txtH := text.Measure(team1ScoreText, fontFace, 0)
-	txtOp.GeoM.Translate(screenWidth/2-txtW-30, screenHeight/2-txtH/2-110)
-	text.Draw(screen, team1ScoreText, fontFace, &txtOp)
-
-	team2ScoreText := fmt.Sprintf(teamScoreText, 2, g.teams[Red].points)
-	txtOp = text.DrawOptions{}
-	txtW, txtH = text.Measure(team2ScoreText, fontFace, 0)
-	txtOp.GeoM.Translate(screenWidth/2+30, screenHeight/2-txtH/2-110)
-	text.Draw(screen, team2ScoreText, fontFace, &txtOp)
-
-	g.drawPile.Draw(screen, op)
-	g.trick.Draw(screen, op)
-
-	for _, team := range g.teams {
-		for _, player := range team.players {
-			if player.Id != g.id {
-				// Simply draw the other players (non-client)
-				player.Draw(screen, op)
-			}
-		}
-	}
-
-	// We've got some work to do for the client
-	if len(g.GetClient().Cards) > 5 {
-		g.overlay.Draw(screen)
-
-		var (
-			discardText = "Click a card to discard"
-			txtOp       = text.DrawOptions{}
-		)
-
-		// Create font faces with different sizes as needed
-		fontFace := &text.GoTextFace{
-			Source: g.fontSource,
-			Size:   24,
-		}
-
-		txtW, txtH := text.Measure(discardText, fontFace, 0)
-		txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
-		text.Draw(screen, discardText, fontFace, &txtOp)
-		g.GetClient().Draw(screen, op)
-
-	} else if g.trumpSuit == nil {
-		g.overlay.Draw(screen)
-
-		// **Everything on top of fade overlay start here**
-
-		if g.activePlayer == g.GetClient().AbsPos {
-			g.GetClient().Draw(screen, op)
-
-			if g.passCounter < 4 {
-				g.buttonConfirm.Draw(screen, op)
-				g.buttonCancel.Draw(screen, op)
-			} else {
-				// Create font faces with different sizes as needed
-				fontFace := &text.GoTextFace{
-					Source: g.fontSource,
-					Size:   24,
-				}
-
-				type SuitText struct {
-					Suit    string
-					OffsetX float64
-					OffsetY float64
-				}
-				suitTexts := []SuitText{
-					{Suit: "Hearts", OffsetX: -140, OffsetY: -50},
-					{Suit: "Diamonds", OffsetX: +140, OffsetY: -50},
-					{Suit: "Clubs", OffsetX: -140, OffsetY: +60},
-					{Suit: "Spades", OffsetX: +140, OffsetY: +60},
-				}
-
-				for _, suitText := range suitTexts {
-					txtOp := text.DrawOptions{}
-					txtW, txtH := text.Measure(suitText.Suit, fontFace, 0)
-					centeredX, centeredY := screenWidth/2-txtW/2, screenHeight/2-txtH/2
-					txtOp.GeoM.Translate(centeredX+suitText.OffsetX, centeredY+suitText.OffsetY)
-					text.Draw(screen, suitText.Suit, fontFace, &txtOp)
-				}
-
-				g.buttonHearts.Draw(screen, op)
-				g.buttonDiamonds.Draw(screen, op)
-				g.buttonClubs.Draw(screen, op)
-				g.buttonSpades.Draw(screen, op)
-
-				if g.passCounter < 7 {
-					g.buttonPass.Draw(screen, op)
-				}
-			}
-
-		} else {
-			var (
-				waitingText = fmt.Sprintf("Waiting on player %v to choose...", g.GetPlayerByAbsPos(g.activePlayer).Id)
-				txtOp       = text.DrawOptions{}
-			)
-
-			// Create font faces with different sizes as needed
-			fontFace := &text.GoTextFace{
-				Source: g.fontSource,
-				Size:   24,
-			}
-
-			txtW, txtH := text.Measure(waitingText, fontFace, 0)
-			txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
-			text.Draw(screen, waitingText, fontFace, &txtOp)
-		}
-	} else if g.trumpSuit != nil && g.activePlayer != g.GetClient().AbsPos {
-		g.overlay.Draw(screen)
-
-		// **Everything on top of fade overlay start here**
-		var (
-			waitingText = fmt.Sprintf("Player %v's turn...", g.activePlayer)
-			txtOp       = text.DrawOptions{}
-		)
-
-		// Create font faces with different sizes as needed
-		fontFace := &text.GoTextFace{
-			Source: g.fontSource,
-			Size:   24,
-		}
-
-		txtW, txtH := text.Measure(waitingText, fontFace, 0)
-		txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2+110)
-		text.Draw(screen, waitingText, fontFace, &txtOp)
-	}
-
+	g.pageStack[len(g.pageStack)-1].Draw(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight
+}
+
+// *Game getters
+
+func (g *Game) GetFontSource() *text.GoTextFaceSource {
+	return g.fontSource
+}
+
+func (g *Game) GetLobbyId() int {
+	return g.lobbyId
+}
+
+func (g *Game) GetActivePlayerAbsPos() PlayPos {
+	return g.activePlayer
+}
+
+func (g *Game) GetTrumpSuit() *Suit {
+	return g.trumpSuit
+}
+
+func (g *Game) GetPassCounter() int {
+	return g.passCounter
+}
+
+func (g *Game) GetDebug() bool {
+	return g.debug
+}
+
+func (g *Game) GetId() int {
+	return g.id
+}
+
+func (g *Game) GetTrick() *Trick {
+	return &g.trick
+}
+
+func (g *Game) GetDrawPile() *DrawPile {
+	return &g.drawPile
+}
+
+func (g *Game) GetTeams() *[2]Team {
+	return &g.teams
+}
+
+// func (g *Game) SetMode(m ) {
+// 	g.mode = m
+// }
+//
+// func (g *Game) GetMode() Mode {
+// 	return g.mode
+// }
+
+func (g *Game) SetActivePlayerAbsPos(pos PlayPos) {
+	g.activePlayer = pos
+}
+
+func (g *Game) SetTrumpDrawPlayer(pos PlayPos) {
+	g.trumpDrawPlayer = pos
+}
+
+func (g *Game) SendServerMessage(msgType string, data interface{}) {
+	g.server.server.Send(connection.Message{
+		Type: msgType,
+		Data: data,
+	})
 }
 
 func GetEncodedCard(c *Card) connection.Card {

@@ -14,6 +14,7 @@ func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
 	g.id = data.PlayerId
 	g.lobbyId = data.LobbyId
 	g.mode = LobbyAssigned
+	g.PushPage(CreateLobbyAssignedPage(g))
 	g.debugPrintln("Handled lobby assign message!")
 }
 
@@ -34,8 +35,8 @@ func (g *Game) HandleStateRequestMessage() {
 
 func (g *Game) HandleStateResponseMessage(data connection.StateResponse) {
 	g.mode = GameActive
+	// g.PushPage(createGameActivePage(g))
 	g.DecodeGameState(data)
-	// Print player ids
 	for i, t := range g.teams {
 		for _, p := range t.players {
 			println("Player on team", i, "with id", p.Id)
@@ -48,7 +49,6 @@ func (g *Game) HandleTurnInfoMessage(data connection.TurnInfo) {
 }
 
 func (g *Game) HandleMessage(msg connection.Message) {
-	// Marshal Data back into JSON bytes
 	raw, err := json.Marshal(msg.Data)
 	if err != nil {
 		println("marshal error:", err)

@@ -13,7 +13,7 @@ type LobbyRequestedPage struct {
 }
 
 func CreateLobbyRequestedPage(g *Game) *LobbyRequestedPage {
-	overlay := *graphics.CreateRectangle(OverlayImage, ScreenWidth, ScreenHeight, 0, 0, 0, 0, 0, 0)
+	overlay := *graphics.CreateRectangle(overlayImage, screenWidth, screenHeight, 0, 0, 0, 0, 0, 0)
 
 	fontFace := &text.GoTextFace{
 		Source: g.GetFontSource(),
@@ -39,6 +39,6 @@ func (p *LobbyRequestedPage) Draw(screen *ebiten.Image) {
 	)
 
 	txtW, txtH := text.Measure(lobbyRequestedText, p.fontFace, 0)
-	txtOp.GeoM.Translate(ScreenWidth/2-txtW/2, ScreenHeight/2-txtH/2)
+	txtOp.GeoM.Translate(screenWidth/2-txtW/2, screenHeight/2-txtH/2)
 	text.Draw(screen, lobbyRequestedText, p.fontFace, &txtOp)
 }

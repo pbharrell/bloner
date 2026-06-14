@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
-
 	"github.com/pbharrell/bloner-server/connection"
 )
 
@@ -152,7 +151,7 @@ func (p *Player) Encode() connection.PlayerState {
 	playerId := p.Id
 	cards := make([]connection.Card, len(p.Cards))
 	for k := range cards {
-		cards[k] = GetEncodedCard(p.Cards[k])
+		cards[k] = p.Cards[k].Encode()
 	}
 
 	return connection.PlayerState{
