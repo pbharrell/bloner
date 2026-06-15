@@ -180,8 +180,8 @@ func (g *Game) PushPage(p Page) {
 	g.pageStack = append(g.pageStack, p)
 }
 
-func (g *Game) PopPage(p Page) {
-	g.pageStack = g.pageStack[:len(g.pageStack)-2]
+func (g *Game) PopPage() {
+	g.pageStack = g.pageStack[:len(g.pageStack)-1]
 }
 
 func (g *Game) GetPlayerByAbsPos(absPos PlayPos) *Player {

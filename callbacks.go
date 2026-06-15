@@ -15,7 +15,7 @@ func joinLobby(b *Button, _ Page, g *Game) {
 
 func backToLobbyTypeSelect(b *Button, _ Page, g *Game) {
 	g.mode = LobbyTypeSelect
-	g.PushPage(CreateLobbyTypeSelectPage(g))
+	g.PopPage()
 }
 
 func joinSpecifiedLobby(_ *Button, p Page, g *Game) {
