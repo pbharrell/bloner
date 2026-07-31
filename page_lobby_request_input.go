@@ -23,8 +23,6 @@ type LobbyRequestInputPage struct {
 }
 
 func CreateLobbyRequestInputPage(game *Game) *LobbyRequestInputPage {
-	// lobbyRequestStr := "Id of lobby you'd like to join:"
-
 	overlay := *graphics.CreateRectangle(overlayImage, screenWidth, screenHeight, 0, 0, 0, 0, 0, 0)
 
 	fontFace := text.GoTextFace{

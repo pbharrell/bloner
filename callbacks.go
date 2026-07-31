@@ -5,6 +5,7 @@ import (
 )
 
 func newLobby(b *Button, _ Page, g *Game) {
+	g.PushPage(CreateLobbyRequestedPage(g))
 	g.SendServerMessage("lobby_req", -1)
 }
 
@@ -24,40 +25,71 @@ func joinSpecifiedLobby(_ *Button, p Page, g *Game) {
 	if err != nil {
 		panic("Invalid int passed for lobby request!")
 	}
+	g.PushPage(CreateLobbyRequestedPage(g))
 	g.SendServerMessage("lobby_req", int16(lobbyReqId))
 }
 
-func confirmTrump(_ *Button, _ Page, g *Game) {
-	if len(g.GetTrick().Pile) < 1 {
+func confirmTrump(_ *Button, p Page, _ *Game) {
+	gameActivePage, ok := p.(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
+	if len(gameActivePage.state.trick.Pile) < 1 {
 		println("Should not be here - picked trump with an empty pile!!")
 		return
 	}
 
-	g.PickUpTrump(g.GetPlayerByAbsPos(g.trumpDrawPlayer))
-	g.SetActiveAbsPos(g.trumpDrawPlayer)
-	g.SendTurnTrumpPick(-1)
+	gameActivePage.state.PickUpTrump(gameActivePage.state.GetPlayerByAbsPos(gameActivePage.state.trumpDrawPlayer))
+	gameActivePage.state.SetActiveAbsPos(gameActivePage.state.trumpDrawPlayer)
+	gameActivePage.SendTurnTrumpPick(-1)
 }
 
-func passTrump(_ *Button, _ Page, g *Game) {
-	g.SendTurnTrumpPass()
+func passTrump(_ *Button, p Page, g *Game) {
+	gameActivePage, ok := p.(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
+	gameActivePage.SendTurnTrumpPass()
 }
 
-func heartsTrump(_ *Button, _ Page, g *Game) {
-	g.SendTurnTrumpPick(int8(Hearts))
-	g.trick.clear()
+func heartsTrump(_ *Button, p Page, g *Game) {
+	gameActivePage, ok := p.(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
+	gameActivePage.SendTurnTrumpPick(int8(Hearts))
+	gameActivePage.state.trick.clear()
 }
 
-func diamondsTrump(_ *Button, _ Page, g *Game) {
-	g.SendTurnTrumpPick(int8(Diamonds))
-	g.trick.clear()
+func diamondsTrump(_ *Button, p Page, g *Game) {
+	gameActivePage, ok := p.(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
+	gameActivePage.SendTurnTrumpPick(int8(Diamonds))
+	gameActivePage.state.trick.clear()
 }
 
-func clubsTrump(_ *Button, _ Page, g *Game) {
-	g.SendTurnTrumpPick(int8(Clubs))
-	g.trick.clear()
+func clubsTrump(_ *Button, p Page, g *Game) {
+	gameActivePage, ok := p.(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
+	gameActivePage.SendTurnTrumpPick(int8(Clubs))
+	gameActivePage.state.trick.clear()
 }
 
-func spadesTrump(_ *Button, _ Page, g *Game) {
-	g.SendTurnTrumpPick(int8(Spades))
-	g.trick.clear()
+func spadesTrump(_ *Button, p Page, g *Game) {
+	gameActivePage, ok := p.(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
+	gameActivePage.SendTurnTrumpPick(int8(Spades))
+	gameActivePage.state.trick.clear()
 }

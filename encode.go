@@ -5,27 +5,32 @@ import (
 )
 
 func (g *Game) EncodeGameState() connection.GameState {
+	gameActivePage, ok := g.pageStack[len(g.pageStack)-1].(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+	
 	intTrumpSuit := -1
-	if g.trumpSuit != nil {
-		intTrumpSuit = int(*g.trumpSuit)
+	if gameActivePage.state.trumpSuit != nil {
+		intTrumpSuit = int(*gameActivePage.state.trumpSuit)
 	}
 
-	encDrawPile := make([]connection.Card, len(g.drawPile.Pile))
-	for i, cardInt := range g.drawPile.Pile {
+	encDrawPile := make([]connection.Card, len(gameActivePage.state.drawPile.Pile))
+	for i, cardInt := range gameActivePage.state.drawPile.Pile {
 		encDrawPile[i] = CreateCard(Suit(cardInt/6), Number(cardInt%6), -1, 0, 0, 0, 0 /*faceDown*/, true).Encode()
 	}
 
-	encPlayPile := g.trick.Encode()
+	encPlayPile := gameActivePage.state.trick.Encode()
 
 	teamState := [2]connection.TeamState{
-		g.teams[Black].Encode(),
-		g.teams[Red].Encode(),
+		gameActivePage.state.teams[Black].Encode(),
+		gameActivePage.state.teams[Red].Encode(),
 	}
 
 	return connection.GameState{
-		PlayerId:        g.id,
-		ActivePlayer:    int(g.activePlayer),
-		TrumpDrawPlayer: int(g.trumpDrawPlayer),
+		PlayerId:        gameActivePage.state.id,
+		ActivePlayer:    int(gameActivePage.state.activePlayer),
+		TrumpDrawPlayer: int(gameActivePage.state.trumpDrawPlayer),
 		TrumpSuit:       intTrumpSuit,
 		DrawPile:        encDrawPile,
 		PlayPile:        encPlayPile,

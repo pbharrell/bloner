@@ -19,14 +19,15 @@ func (g *Game) HandleLobbyAssignMessage(data connection.LobbyAssign) {
 }
 
 func (g *Game) HandleGameStartMessage(data connection.GameStart) {
-	for len(data) > 0 {
-		for i := range g.teams {
-			for j := range g.teams[i].players {
-				g.teams[i].players[j].Id = data[i*2+j]
-			}
+	gameActivePage := CreateGameActivePage(g)
+	for i := range gameActivePage.state.teams {
+		for j := range gameActivePage.state.teams[i].players {
+			gameActivePage.state.teams[i].players[j].Id = data[i*2+j]
 		}
-		break
 	}
+
+	g.PopPage()
+	g.PushPage(gameActivePage)
 }
 
 func (g *Game) HandleStateRequestMessage() {
@@ -34,10 +35,15 @@ func (g *Game) HandleStateRequestMessage() {
 }
 
 func (g *Game) HandleStateResponseMessage(data connection.StateResponse) {
+	gameActivePage, ok := g.pageStack[len(g.pageStack)-1].(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
 	g.mode = GameActive
 	// g.PushPage(createGameActivePage(g))
 	g.DecodeGameState(data)
-	for i, t := range g.teams {
+	for i, t := range gameActivePage.state.teams {
 		for _, p := range t.players {
 			println("Player on team", i, "with id", p.Id)
 		}
@@ -64,7 +70,6 @@ func (g *Game) HandleMessage(msg connection.Message) {
 		}
 
 		g.HandleLobbyAssignMessage(lobbyAssign)
-		break
 
 	case "game_start":
 		var gameStart connection.GameStart
@@ -74,11 +79,9 @@ func (g *Game) HandleMessage(msg connection.Message) {
 		}
 
 		g.HandleGameStartMessage(gameStart)
-		break
 
 	case "state_req":
 		g.HandleStateRequestMessage()
-		break
 
 	case "state_res":
 		var stateResponse connection.StateResponse
@@ -88,7 +91,6 @@ func (g *Game) HandleMessage(msg connection.Message) {
 		}
 
 		g.HandleStateResponseMessage(stateResponse)
-		break
 
 	case "turn_info":
 		var turnInfo connection.TurnInfo

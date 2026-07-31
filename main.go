@@ -79,31 +79,55 @@ type TurnInfo struct {
 	turnInfo connection.TurnInfo
 }
 
-type Game struct {
-	inited          bool
-	debug           bool
-	server          server
+type GameState struct {
 	id              int
-	mode            mode
-	lobbyId         int
-	fontSource      *text.GoTextFaceSource
-	trumpSuit       *Suit
-	passCounter     int
-	teams           [2]Team
 	activePlayer    PlayPos
 	trumpDrawPlayer PlayPos
-	buttonNewLobby  Button
-	buttonJoinLobby Button
-	lobbyRequestStr string
-	overlay         graphics.Shape
+	trumpSuit       *Suit
+	teams           [2]Team
 	drawPile        DrawPile
 	trick           Trick
 	turnInfo        TurnInfo
-	pageStack       []Page
+	passCounter     int
 }
 
-func (g *Game) initOverlay() {
-	g.overlay = *graphics.CreateRectangle(overlayImage, screenWidth, screenHeight, 0, 0, 0, 0, 0, 0)
+func CreateGameState(id int) GameState {
+	s := GameState{}
+	s.id = id
+	s.drawPile.Sprite = *graphics.CreateSprite(blankCardImage, blankCardAlphaImage, .1, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
+	s.drawPile.Sprite.X = screenWidth/2 - s.drawPile.Sprite.ImageWidth - 20
+	s.drawPile.Sprite.Y = screenHeight/2 - s.drawPile.Sprite.ImageHeight/2
+	s.drawPile.shuffleDrawPile()
+
+	s.teams[Black].teamColor = Black
+	s.teams[Red].teamColor = Red
+	s.teams[Black].points = 0
+	s.teams[Red].points = 0
+	s.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .1, &s.drawPile /* faceDown */, false, 0)
+	s.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .1, &s.drawPile /* faceDown */, false, 0)
+	s.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .1, &s.drawPile /* faceDown */, false, 0)
+	s.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .1, &s.drawPile /* faceDown */, false, 0)
+
+	s.trick.X = screenWidth/2 + 20
+	s.trick.Y = screenHeight/2 - s.drawPile.Sprite.ImageHeight/2
+	s.trick.playCard(s.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
+
+	s.trumpDrawPlayer = 0
+	s.activePlayer = s.GetNextPlayerByAbsPos(s.trumpDrawPlayer).AbsPos
+
+	s.turnInfo.inited = false
+	return s
+}
+
+type Game struct {
+	inited     bool
+	debug      bool
+	server     server
+	mode       mode
+	id         int
+	lobbyId    int
+	fontSource *text.GoTextFaceSource
+	pageStack  []Page
 }
 
 func (g *Game) init() {
@@ -121,38 +145,21 @@ func (g *Game) init() {
 
 	g.mode = LobbyTypeSelect
 
+	g.id = -1
 	g.lobbyId = -1
 
 	g.fontSource = fontSource
 
-	g.drawPile.Sprite = *graphics.CreateSprite(blankCardImage, blankCardAlphaImage, .1, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
-	g.drawPile.Sprite.X = screenWidth/2 - g.drawPile.Sprite.ImageWidth - 20
-	g.drawPile.Sprite.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
-	g.drawPile.shuffleDrawPile()
+	g.server.connected = true
+	g.server.lobbyId = -1
 
-	g.teams[Black].teamColor = Black
-	g.teams[Red].teamColor = Red
-	g.teams[Black].points = 0
-	g.teams[Red].points = 0
-	g.teams[Black].players[0] = CreatePlayer(0, Black, 5, Bottom, .1, &g.drawPile /* faceDown */, false, 0)
-	g.teams[Red].players[0] = CreatePlayer(1, Red, 5, Left, .1, &g.drawPile /* faceDown */, false, 0)
-	g.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .1, &g.drawPile /* faceDown */, false, 0)
-	g.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .1, &g.drawPile /* faceDown */, false, 0)
-
-	g.trick.X = screenWidth/2 + 20
-	g.trick.Y = screenHeight/2 - g.drawPile.Sprite.ImageHeight/2
-	g.trick.playCard(g.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
-
-	g.trumpDrawPlayer = 0
-	g.activePlayer = g.GetNextPlayerByAbsPos(g.trumpDrawPlayer).AbsPos
-
-	g.initOverlay()
+	g.pageStack = append(g.pageStack, CreateLobbyTypeSelectPage(g))
 
 	ctx := context.Background()
 	conn, _, err := websocket.Dial(ctx, "ws://localhost:9000/ws", nil)
 
 	if err != nil {
-		return
+		println("Failed to initialize connection! No server found.")
 	}
 
 	g.server.server = connection.Server{
@@ -160,13 +167,6 @@ func (g *Game) init() {
 		WS:   conn,
 		Data: make(chan connection.Message),
 	}
-	g.server.connected = true
-	g.server.lobbyId = -1
-
-	g.turnInfo.inited = false
-
-	g.pageStack = append(g.pageStack, CreateLobbyTypeSelectPage(g))
-
 	go g.server.server.Listen()
 }
 
@@ -184,11 +184,11 @@ func (g *Game) PopPage() {
 	g.pageStack = g.pageStack[:len(g.pageStack)-1]
 }
 
-func (g *Game) GetPlayerByAbsPos(absPos PlayPos) *Player {
-	for i := range g.teams {
-		for j := range g.teams[i].players {
-			if absPos == g.teams[i].players[j].AbsPos {
-				return &g.teams[i].players[j]
+func (s *GameState) GetPlayerByAbsPos(absPos PlayPos) *Player {
+	for i := range s.teams {
+		for j := range s.teams[i].players {
+			if absPos == s.teams[i].players[j].AbsPos {
+				return &s.teams[i].players[j]
 			}
 		}
 	}
@@ -197,11 +197,11 @@ func (g *Game) GetPlayerByAbsPos(absPos PlayPos) *Player {
 	return nil
 }
 
-func (g *Game) GetPlayerById(id int) *Player {
-	for i := range g.teams {
-		for j := range g.teams[i].players {
-			if id == g.teams[i].players[j].Id {
-				return &g.teams[i].players[j]
+func (s *GameState) GetPlayerById(id int) *Player {
+	for i := range s.teams {
+		for j := range s.teams[i].players {
+			if id == s.teams[i].players[j].Id {
+				return &s.teams[i].players[j]
 			}
 		}
 	}
@@ -210,13 +210,13 @@ func (g *Game) GetPlayerById(id int) *Player {
 	return nil
 }
 
-func (g *Game) GetNextPlayerByAbsPos(absPos PlayPos) *Player {
+func (s *GameState) GetNextPlayerByAbsPos(absPos PlayPos) *Player {
 	nextPlayerPos := (absPos + 1) % 4
 
-	for i := range g.teams {
-		for j := range g.teams[i].players {
-			if nextPlayerPos == g.teams[i].players[j].AbsPos {
-				return &g.teams[i].players[j]
+	for i := range s.teams {
+		for j := range s.teams[i].players {
+			if nextPlayerPos == s.teams[i].players[j].AbsPos {
+				return &s.teams[i].players[j]
 			}
 		}
 	}
@@ -225,14 +225,14 @@ func (g *Game) GetNextPlayerByAbsPos(absPos PlayPos) *Player {
 	return nil
 }
 
-func (g *Game) GetNextPlayerById(id int) *Player {
-	prevPlayerPos := g.GetPlayerById(id).AbsPos
+func (s *GameState) GetNextPlayerById(id int) *Player {
+	prevPlayerPos := s.GetPlayerById(id).AbsPos
 	nextPlayerPos := (prevPlayerPos + 1) % 4
 
-	for i := range g.teams {
-		for j := range g.teams[i].players {
-			if nextPlayerPos == g.teams[i].players[j].AbsPos {
-				return &g.teams[i].players[j]
+	for i := range s.teams {
+		for j := range s.teams[i].players {
+			if nextPlayerPos == s.teams[i].players[j].AbsPos {
+				return &s.teams[i].players[j]
 			}
 		}
 	}
@@ -241,56 +241,56 @@ func (g *Game) GetNextPlayerById(id int) *Player {
 	return nil
 }
 
-func (g *Game) GetClient() *Player {
-	return g.GetPlayerById(g.id)
+func (s *GameState) GetClient() *Player {
+	return s.GetPlayerById(s.id)
 }
 
-func (g *Game) GetActivePlayer() *Player {
-	return g.GetPlayerByAbsPos(g.activePlayer)
+func (s *GameState) GetActivePlayer() *Player {
+	return s.GetPlayerByAbsPos(s.activePlayer)
 }
 
-func (g *Game) SetActiveAbsPos(absPos PlayPos) {
-	g.activePlayer = absPos
+func (s *GameState) SetActiveAbsPos(absPos PlayPos) {
+	s.activePlayer = absPos
 }
 
-func (g *Game) SetActivePlayer(player *Player) {
-	g.activePlayer = player.AbsPos
+func (s *GameState) SetActivePlayer(player *Player) {
+	s.activePlayer = player.AbsPos
 }
 
-func (g *Game) GetTeam(player *Player) *Team {
-	for i := range g.teams {
-		for j := range g.teams[i].players {
-			if &g.teams[i].players[j] == player {
-				return &g.teams[i]
+func (s *GameState) GetTeam(player *Player) *Team {
+	for i := range s.teams {
+		for j := range s.teams[i].players {
+			if &s.teams[i].players[j] == player {
+				return &s.teams[i]
 			}
 		}
 	}
 	return nil
 }
 
-func (g *Game) DealCards() {
-	g.trick.clear()
+func (s *GameState) DealCards() {
+	s.trick.clear()
 
-	g.drawPile.shuffleDrawPile()
+	s.drawPile.shuffleDrawPile()
 
-	for i := range g.teams {
-		for j := range g.teams[i].players {
-			if len(g.teams[i].players[j].Cards) <= 0 {
-				faceDown := g.id != g.teams[i].players[j].Id
-				g.teams[i].players[j].DealHand(.1, &g.drawPile, 5, faceDown)
+	for i := range s.teams {
+		for j := range s.teams[i].players {
+			if len(s.teams[i].players[j].Cards) <= 0 {
+				faceDown := s.id != s.teams[i].players[j].Id
+				s.teams[i].players[j].DealHand(.1, &s.drawPile, 5, faceDown)
 			}
 		}
 	}
-	g.trumpSuit = nil
-	g.passCounter = 0
+	s.trumpSuit = nil
+	s.passCounter = 0
 
-	g.ArrangeTeams()
+	s.ArrangeTeams()
 }
 
-func (g *Game) ArrangeTeams() {
-	client := g.GetClient()
-	g.teams[Black].Arrange(client.Id, client.AbsPos)
-	g.teams[Red].Arrange(client.Id, client.AbsPos)
+func (s *GameState) ArrangeTeams() {
+	client := s.GetClient()
+	s.teams[Black].Arrange(client.Id, client.AbsPos)
+	s.teams[Red].Arrange(client.Id, client.AbsPos)
 }
 
 func (g *Game) SendStateResponse() {
@@ -310,46 +310,7 @@ func (g *Game) SendStateResponse() {
 	g.debugPrintln("Handled state request message!")
 }
 
-func (g *Game) SendTurnInfo() {
-	if g.server.connected && g.turnInfo.inited {
-		println("Sending turn info for player id:", g.turnInfo.turnInfo.PlayerId)
-		g.server.server.Send(connection.Message{
-			Type: "turn_info",
-			Data: g.turnInfo.turnInfo,
-		})
-	} else {
-		println("turn_info not sent since no server is connected.")
-	}
-	g.turnInfo.inited = false
-}
-
-func (g *Game) SendTurnCardPlay(card *Card) {
-	g.turnInfo.turnInfo.TurnType = connection.CardPlay
-	g.turnInfo.turnInfo.CardPlay = card.Encode()
-	g.SendTurnInfo()
-	g.EndTurn()
-}
-
-func (g *Game) SendTurnTrumpDiscard(card *Card) {
-	g.turnInfo.turnInfo.TurnType = connection.TrumpDiscard
-	g.turnInfo.turnInfo.TrumpDiscard = card.Encode()
-	g.SendTurnInfo()
-	g.EndTurn()
-}
-
-func (g *Game) SendTurnTrumpPick(suit int8) {
-	g.turnInfo.turnInfo.TurnType = connection.TrumpPick
-	g.turnInfo.turnInfo.TrumpPick = suit
-	g.SendTurnInfo()
-}
-
-func (g *Game) SendTurnTrumpPass() {
-	g.turnInfo.turnInfo.TurnType = connection.TrumpPass
-	g.SendTurnInfo()
-	g.EndTurn()
-}
-
-func (g *Game) PickUpTrump(player *Player) {
+func (g *GameState) PickUpTrump(player *Player) {
 	topCard := g.trick.Pile[len(g.trick.Pile)-1]
 	topCard.PlayerId = player.Id
 	g.trick.Pile = g.trick.Pile[:len(g.trick.Pile)-1]
@@ -359,37 +320,30 @@ func (g *Game) PickUpTrump(player *Player) {
 	player.ArrangeHand(g.GetClient().Id)
 }
 
-func (g *Game) PlayCard(playerId int, cardInd int) {
-	player := g.GetPlayerById(playerId)
+func (s *GameState) PlayCard(playerId int, cardInd int) {
+	player := s.GetPlayerById(playerId)
 	playedCard := player.Cards[cardInd]
 
-	if len(g.trick.Pile) == 0 {
-		g.trick.LeadSuit = playedCard.Suit
+	if len(s.trick.Pile) == 0 {
+		s.trick.LeadSuit = playedCard.Suit
 	}
-	g.trick.playCard(playedCard)
+	s.trick.playCard(playedCard)
 	println("player", playerId, "just played card", SuitToString(playedCard.Suit), "of", NumberToString(playedCard.Number), "owned by", playedCard.PlayerId)
 	player.Cards = slices.Delete(player.Cards, cardInd, cardInd+1)
-	player.ArrangeHand(g.GetClient().Id)
+	player.ArrangeHand(s.GetClient().Id)
 }
 
-func (g *Game) EndTurn() {
-	g.activePlayer = (g.activePlayer + 1) % 4
+func (s *GameState) EndTurn() {
+	s.activePlayer = (s.activePlayer + 1) % 4
 }
 
-func (g *Game) IsPickingTrump() bool {
-	return g.activePlayer == g.GetClient().AbsPos && g.trumpSuit == nil
+func (s *GameState) IsPickingTrump() bool {
+	return s.activePlayer == s.GetClient().AbsPos && s.trumpSuit == nil
 }
 
 func (g *Game) Update() error {
 	if !g.inited {
 		g.init()
-	}
-
-	if !g.turnInfo.inited {
-		g.turnInfo.turnInfo = connection.TurnInfo{
-			PlayerId: g.id,
-		}
-		g.turnInfo.inited = true
 	}
 
 	select {
@@ -433,56 +387,12 @@ func (g *Game) GetFontSource() *text.GoTextFaceSource {
 	return g.fontSource
 }
 
-func (g *Game) GetLobbyId() int {
-	return g.lobbyId
+func (s *GameState) SetActivePlayerAbsPos(pos PlayPos) {
+	s.activePlayer = pos
 }
 
-func (g *Game) GetActivePlayerAbsPos() PlayPos {
-	return g.activePlayer
-}
-
-func (g *Game) GetTrumpSuit() *Suit {
-	return g.trumpSuit
-}
-
-func (g *Game) GetPassCounter() int {
-	return g.passCounter
-}
-
-func (g *Game) GetDebug() bool {
-	return g.debug
-}
-
-func (g *Game) GetId() int {
-	return g.id
-}
-
-func (g *Game) GetTrick() *Trick {
-	return &g.trick
-}
-
-func (g *Game) GetDrawPile() *DrawPile {
-	return &g.drawPile
-}
-
-func (g *Game) GetTeams() *[2]Team {
-	return &g.teams
-}
-
-// func (g *Game) SetMode(m ) {
-// 	g.mode = m
-// }
-//
-// func (g *Game) GetMode() Mode {
-// 	return g.mode
-// }
-
-func (g *Game) SetActivePlayerAbsPos(pos PlayPos) {
-	g.activePlayer = pos
-}
-
-func (g *Game) SetTrumpDrawPlayer(pos PlayPos) {
-	g.trumpDrawPlayer = pos
+func (s *GameState) SetTrumpDrawPlayer(pos PlayPos) {
+	s.trumpDrawPlayer = pos
 }
 
 func (g *Game) SendServerMessage(msgType string, data interface{}) {
