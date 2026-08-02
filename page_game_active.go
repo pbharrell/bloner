@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -80,6 +81,47 @@ func CreateGameActivePage(g *Game) *GameActivePage {
 	return page
 }
 
+func (p *GameActivePage) HandleHandFinish() {
+	teamBlackTricks := 0
+	teamRedTricks := 0
+	for i := range p.state.teams {
+		for j, player := range p.state.teams[i].players {
+			switch i {
+			case 0:
+				teamBlackTricks += len(player.wonTricks)
+			case 1:
+				teamRedTricks += len(player.wonTricks)
+			}
+
+			p.state.teams[i].players[j].wonTricks = []*Card{}
+		}
+	}
+
+	if teamBlackTricks > teamRedTricks {
+		if teamBlackTricks == 5 {
+			p.state.teams[Black].points += 2
+		} else {
+			p.state.teams[Black].points++
+		}
+	} else if teamBlackTricks < teamRedTricks {
+		if teamRedTricks == 5 {
+			p.state.teams[Red].points += 2
+		} else {
+			p.state.teams[Red].points++
+		}
+	}
+
+	p.state.DealCards()
+
+	p.state.trick.playCard(p.state.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
+	p.state.trumpDrawPlayer = (p.state.trumpDrawPlayer + 1) % 4
+	p.state.activePlayer += p.state.trumpDrawPlayer
+
+	if p.state.activePlayer == p.state.GetClient().AbsPos {
+		p.game.SendStateResponse()
+	}
+}
+
 func (p *GameActivePage) Update() {
 	if !p.state.turnInfo.inited {
 		p.state.turnInfo.turnInfo = connection.TurnInfo{
@@ -111,110 +153,72 @@ func (p *GameActivePage) Update() {
 	}
 
 	if outOfCards {
-		teamBlackTricks := 0
-		teamRedTricks := 0
-		for i := range p.state.teams {
-			for j, player := range p.state.teams[i].players {
-				if i == 0 {
-					teamBlackTricks += len(player.wonTricks)
-				} else if i == 1 {
-					teamRedTricks += len(player.wonTricks)
+		p.HandleHandFinish()
+	}
+}
+
+func (p *GameActivePage) UpdateClientDiscard() {
+	x, y := ebiten.CursorPosition()
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		// Look through sprites in reverse order since a card on the right is on top
+		for i, card := range slices.Backward(p.state.GetClient().Cards) {
+			if card.Sprite.In(x, y) {
+				discarded := card
+				p.state.drawPile.discard(discarded)
+				if p.state.GetClient().Discard(i, p.state.id) != discarded {
+					println("Failed to discard card from hand!! Should not be here.")
 				}
 
-				p.state.teams[i].players[j].wonTricks = []*Card{}
+				p.SendTurnTrumpDiscard(discarded)
+				break
 			}
 		}
+	}
+}
 
-		if teamBlackTricks > teamRedTricks {
-			if teamBlackTricks == 5 {
-				p.state.teams[Black].points += 2
-			} else {
-				p.state.teams[Black].points++
-			}
-		} else if teamBlackTricks < teamRedTricks {
-			if teamRedTricks == 5 {
-				p.state.teams[Red].points += 2
-			} else {
-				p.state.teams[Red].points++
-			}
+func (p *GameActivePage) UpdatePickingTrump() {
+	x, y := ebiten.CursorPosition()
+	mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+
+	if p.state.passCounter < 4 {
+		p.buttonConfirm.Update(x, y, mouseButtonPressed)
+		p.buttonPass.Update(x, y, mouseButtonPressed)
+	} else {
+		p.buttonHearts.Update(x, y, mouseButtonPressed)
+		p.buttonDiamonds.Update(x, y, mouseButtonPressed)
+		p.buttonClubs.Update(x, y, mouseButtonPressed)
+		p.buttonSpades.Update(x, y, mouseButtonPressed)
+		if p.state.passCounter < 7 {
+			p.buttonPass.Update(x, y, mouseButtonPressed)
 		}
+	}
+}
 
-		p.state.DealCards()
+func (p *GameActivePage) UpdateClientPlay() {
+	x, y := ebiten.CursorPosition()
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 
-		p.state.trick.playCard(p.state.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
-		p.state.trumpDrawPlayer = (p.state.trumpDrawPlayer + 1) % 4
-		p.state.activePlayer += p.state.trumpDrawPlayer
-
-		if p.state.activePlayer == client.AbsPos {
-			p.game.SendStateResponse()
+		// Look through sprites in reverse order since a card on the right is on top
+		for i := len(p.state.GetClient().Cards) - 1; i >= 0; i-- {
+			card := p.state.GetClient().Cards[i]
+			if card.Sprite.In(x, y) {
+				p.state.PlayCard(p.state.id, i)
+				p.SendTurnCardPlay(card)
+				break
+			}
 		}
 	}
 }
 
 func (p *GameActivePage) UpdateClientTurn() {
-	client := p.state.GetClient()
-	if len(client.Cards) > 5 {
-		x, y := ebiten.CursorPosition()
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(client.Cards) - 1; i >= 0; i-- {
-				card := client.Cards[i]
-				if card.Sprite.In(x, y) {
-					discarded := client.Cards[i]
-					p.state.drawPile.discard(discarded)
-					if client.Discard(i, p.state.id) != discarded {
-						println("Failed to discard card from hand!! Should not be here.")
-					}
-
-					p.SendTurnTrumpDiscard(discarded)
-					break
-				}
-			}
-		}
+	if len(p.state.GetClient().Cards) > 5 {
+		p.UpdateClientDiscard()
 
 	} else if p.state.IsPickingTrump() {
-		x, y := ebiten.CursorPosition()
-		mouseButtonPressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-
-		if p.state.passCounter < 4 {
-			p.buttonConfirm.Update(x, y, mouseButtonPressed)
-			p.buttonPass.Update(x, y, mouseButtonPressed)
-		} else {
-			p.buttonHearts.Update(x, y, mouseButtonPressed)
-			p.buttonDiamonds.Update(x, y, mouseButtonPressed)
-			p.buttonClubs.Update(x, y, mouseButtonPressed)
-			p.buttonSpades.Update(x, y, mouseButtonPressed)
-			if p.state.passCounter < 7 {
-				p.buttonPass.Update(x, y, mouseButtonPressed)
-			}
-		}
+		p.UpdatePickingTrump()
 
 	} else {
-		x, y := ebiten.CursorPosition()
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-
-			// Look through sprites in reverse order since a card on the right is on top
-			for i := len(client.Cards) - 1; i >= 0; i-- {
-				card := client.Cards[i]
-				if card.Sprite.In(x, y) {
-					p.state.PlayCard(p.state.id, i)
-					p.SendTurnCardPlay(card)
-					break
-				}
-			}
-
-			// // Only want to add a card to hand from draw pile if debugging
-			// if false || g.debug {
-			// 	if g.drawPile.Sprite.In(x, y) && len(client.Cards) < 5 {
-			// 		card := g.drawPile.drawCard(.1, 0, 0, 0 /* faceDown */, false)
-			// 		if card != nil {
-			// 			card.PlayerId = client.Id
-			// 			client.Cards = append(client.Cards, card)
-			// 			client.ArrangeHand(client.Id)
-			// 		}
-			// 	}
-			// }
-		}
+		p.UpdateClientPlay()
 	}
 
 	p.state.drawPile.Update()
