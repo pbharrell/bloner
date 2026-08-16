@@ -95,6 +95,7 @@ func CreateGameState(id int) GameState {
 	s := GameState{}
 	s.id = id
 	s.drawPile.Sprite = *graphics.CreateSprite(blankCardImage, blankCardAlphaImage, .1, screenWidth/2, screenHeight/2, 0, 0, 0, 0)
+	s.drawPile.Sprite.Visible = false
 	s.drawPile.Sprite.X = screenWidth/2 - s.drawPile.Sprite.ImageWidth - 20
 	s.drawPile.Sprite.Y = screenHeight/2 - s.drawPile.Sprite.ImageHeight/2
 	s.drawPile.shuffleDrawPile()

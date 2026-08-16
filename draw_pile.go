@@ -49,8 +49,6 @@ func (p *DrawPile) drawCard(scale float64, x int, y int, angle int, faceDown boo
 func (p *DrawPile) Update() {
 	if len(p.Pile) == 0 {
 		p.Sprite.Visible = false
-	} else if !p.Sprite.Visible {
-		p.Sprite.Visible = true
 	}
 }
 
