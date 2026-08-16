@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"image"
-	"slices"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/pbharrell/bloner-server/connection"
@@ -72,13 +71,13 @@ var (
 func SuitToString(suit Suit) string {
 	switch suit {
 	case Spades:
-		return "spades"
+		return "Spades"
 	case Clubs:
-		return "clubs"
+		return "Clubs"
 	case Hearts:
-		return "hearts"
+		return "Hearts"
 	case Diamonds:
-		return "diamonds"
+		return "Diamonds"
 	default:
 		return fmt.Sprintf("Found unsupported suit with value %d", suit)
 	}
@@ -87,50 +86,29 @@ func SuitToString(suit Suit) string {
 func NumberToString(num Number) string {
 	switch num {
 	case Nine:
-		return "nine"
+		return "9"
 	case Ten:
-		return "ten"
+		return "10"
 	case Jack:
-		return "jack"
+		return "Jack"
 	case Queen:
-		return "queen"
+		return "Queen"
 	case King:
-		return "king"
+		return "King"
 	case Ace:
-		return "ace"
+		return "Ace"
 	default:
 		return fmt.Sprintf("Found unsupported suit with value %d", num)
 	}
 }
 
 func initCardImageFiles() {
-	// One image for each card + blank side
-	allowedImageFiles := []string{
-		"assets/cards/clubs_9.png",
-		"assets/cards/clubs_10.png",
-		"assets/cards/clubs_jack.png",
-		"assets/cards/clubs_queen.png",
-		"assets/cards/clubs_king.png",
-		"assets/cards/clubs_ace.png",
-		"assets/cards/spades_9.png",
-		"assets/cards/spades_10.png",
-		"assets/cards/spades_jack.png",
-		"assets/cards/spades_queen.png",
-		"assets/cards/spades_king.png",
-		"assets/cards/spades_ace.png",
-	}
-
 	cardImageFilenames = make([][]string, 4) // <-- the number of suits in play + 1 for blank side
 	for i := range cardImageFilenames {
 		cardImageFilenames[i] = make([]string, 6) // <-- the number of distinct nums in play
 
 		for j := range cardImageFilenames[i] {
 			cardImageFilenames[i][j] = "assets/cards/" + SuitToString(Suit(i)) + "_" + NumberToString(Number(j)) + ".png"
-
-			// TODO: Change the image overriding when other images are in place
-			if !slices.Contains(allowedImageFiles, cardImageFilenames[i][j]) {
-				cardImageFilenames[i][j] = allowedImageFiles[0]
-			}
 		}
 	}
 
