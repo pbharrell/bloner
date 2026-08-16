@@ -42,6 +42,7 @@ func (g *Game) DecodeGameState(state connection.GameState) {
 
 	// Need to recreate the turn info data if already created
 	gameActivePage.state.turnInfo.inited = false
+	gameActivePage.ready = true
 }
 
 func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
@@ -49,7 +50,7 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 	if !ok {
 		panic("Page is not `GameActivePage`!")
 	}
-	
+
 	switch turnInfo.TurnType {
 	case connection.TrumpPass:
 		gameActivePage.state.passCounter++

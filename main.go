@@ -294,8 +294,13 @@ func (s *GameState) ArrangeTeams() {
 }
 
 func (g *Game) SendStateResponse() {
-	var gameState connection.StateResponse
 
+	gameActivePage, ok := g.pageStack[len(g.pageStack)-1].(*GameActivePage)
+	if !ok {
+		panic("Page is not `GameActivePage`!")
+	}
+
+	var gameState connection.StateResponse
 	gameState = g.EncodeGameState()
 	fmt.Printf("Player id: %v\n", gameState.PlayerId)
 	if g.server.connected {
@@ -306,6 +311,8 @@ func (g *Game) SendStateResponse() {
 	} else {
 		println("state_res not sent since no server is connected")
 	}
+
+	gameActivePage.ready = true
 
 	g.debugPrintln("Handled state request message!")
 }

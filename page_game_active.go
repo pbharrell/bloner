@@ -12,16 +12,23 @@ import (
 )
 
 type GameActivePage struct {
-	game           *Game
-	state          GameState
-	fontFace       *text.GoTextFace
-	overlay        graphics.Shape
-	buttonPass     Button
-	buttonConfirm  Button
-	buttonHearts   Button
-	buttonDiamonds Button
-	buttonClubs    Button
-	buttonSpades   Button
+	game              *Game
+	ready             bool
+	pickingTrumpReady bool
+	state             GameState
+	fontFace          *text.GoTextFace
+	overlay           graphics.Shape
+	previewCard       *Card
+	buttonPass        Button
+	buttonConfirm     Button
+	buttonHearts      Button
+	buttonDiamonds    Button
+	buttonClubs       Button
+	buttonSpades      Button
+	textHearts        Text
+	textDiamonds      Text
+	textClubs         Text
+	textSpades        Text
 }
 
 func CreateGameActivePage(g *Game) *GameActivePage {
@@ -33,10 +40,13 @@ func CreateGameActivePage(g *Game) *GameActivePage {
 	}
 
 	page := &GameActivePage{
-		game:     g,
-		state:    CreateGameState(g.id),
-		fontFace: fontFace,
-		overlay:  overlay,
+		game:              g,
+		ready:             false,
+		pickingTrumpReady: false,
+		state:             CreateGameState(g.id),
+		fontFace:          fontFace,
+		overlay:           overlay,
+		previewCard:       nil,
 	}
 
 	buttonConfirm := *CreateButton(page, g, confirmTrump, "assets/confirm_button.png", "assets/confirm_button_pressed.png", 4, 0, screenHeight/2+80, 0)
@@ -44,17 +54,10 @@ func CreateGameActivePage(g *Game) *GameActivePage {
 	confirmX := screenWidth/2 - confirmWidth/2 + 80
 	buttonConfirm.SetLoc(confirmX, buttonConfirm.sprite.Y)
 
-	buttonCancel := *CreateButton(page, g, passTrump, "assets/cancel_button.png", "assets/cancel_button_pressed.png", 4, 0, screenHeight/2+80, 0)
-	cancelWidth := buttonCancel.sprite.ImageWidth
-	cancelX := screenWidth/2 - cancelWidth/2 - 80
-	buttonCancel.SetLoc(cancelX, buttonCancel.sprite.Y)
-
-	buttonPass := *CreateButton(page, g, passTrump, "assets/pass_button.png", "assets/pass_button.png", 5, 0, 0, 0)
+	buttonPass := *CreateButton(page, g, passTrump, "assets/pass_button.png", "assets/pass_button.png", 5, 0, screenHeight/2+80, 0)
 	passWidth := buttonPass.sprite.ImageWidth
-	passHeight := buttonPass.sprite.ImageHeight
-	passX := screenWidth/2 - passWidth/2
-	passY := screenHeight/2 - passHeight/2
-	buttonPass.SetLoc(passX, passY)
+	passX := screenWidth/2 - passWidth/2 - 80
+	buttonPass.SetLoc(passX, buttonPass.sprite.Y)
 
 	buttonHearts := *CreateButton(page, g, heartsTrump, "assets/hearts_button.png", "assets/hearts_button_pressed.png", 4, 0, screenHeight/2-140, 0)
 	heartsWidth := buttonHearts.sprite.ImageWidth
@@ -128,6 +131,13 @@ func (p *GameActivePage) Update() {
 			PlayerId: p.state.id,
 		}
 		p.state.turnInfo.inited = true
+
+	}
+
+	if p.ready && p.previewCard == nil {
+		p.previewCard = p.state.drawPile.drawCard(.15, screenWidth/2, screenHeight/2-30, 0 /*faceDown */, false)
+		p.previewCard.Sprite.X = p.previewCard.Sprite.X - p.previewCard.Sprite.ImageWidth/2
+		p.previewCard.Sprite.Y = p.previewCard.Sprite.Y - p.previewCard.Sprite.ImageHeight/2
 	}
 
 	client := p.state.GetClient()
@@ -169,11 +179,66 @@ func (p *GameActivePage) UpdateClientDiscard() {
 					println("Failed to discard card from hand!! Should not be here.")
 				}
 
+				// FIXME: PREVIEW CARD DISAPPEARS
+				p.previewCard = nil
 				p.SendTurnTrumpDiscard(discarded)
 				break
 			}
 		}
 	}
+}
+
+func (p *GameActivePage) InitPickingTrumpButtons() {
+	type loc struct {
+		X       int
+		Y       int
+		OffsetY int
+	}
+
+	trumpLocs := [3]loc{
+		{X: screenWidth / 2, Y: screenHeight/2 - 140, OffsetY: -20},
+		{X: screenWidth/2 + 140, Y: screenHeight/2 + 80, OffsetY: 85},
+		{X: screenWidth/2 - 140, Y: screenHeight/2 + 80, OffsetY: 85},
+	}
+
+	type suitText struct {
+		Suit    Suit
+		SuitStr string
+		Button  *Button
+		Text    *Text
+	}
+
+	suitTexts := [4]suitText{
+		{Suit: Hearts, SuitStr: "Hearts", Button: &p.buttonHearts, Text: &p.textHearts},
+		{Suit: Diamonds, SuitStr: "Diamonds", Button: &p.buttonDiamonds, Text: &p.textDiamonds},
+		{Suit: Clubs, SuitStr: "Clubs", Button: &p.buttonClubs, Text: &p.textClubs},
+		{Suit: Spades, SuitStr: "Spades", Button: &p.buttonSpades, Text: &p.textSpades},
+	}
+
+	trumpLoc := 0
+	for _, suitText := range suitTexts {
+		if suitText.Suit == p.previewCard.Suit {
+			suitText.Button.sprite.Visible = false
+			suitText.Button.pressedSprite.Visible = false
+			continue
+		}
+
+		suitText.Button.SetLoc(
+			trumpLocs[trumpLoc].X-suitText.Button.sprite.ImageWidth/2,
+			trumpLocs[trumpLoc].Y-suitText.Button.sprite.ImageHeight/2,
+		)
+
+		txtOp := text.DrawOptions{}
+		txtW, txtH := text.Measure(suitText.SuitStr, p.fontFace, 0)
+
+		*suitText.Text = *CreateText(p, p.game, p.fontFace, suitText.SuitStr, txtOp, int(suitText.Button.sprite.X+suitText.Button.sprite.ImageWidth/2-int(txtW/2)), int(suitText.Button.sprite.Y-int(txtH/2)+trumpLocs[trumpLoc].OffsetY))
+
+		trumpLoc++
+	}
+
+	p.buttonPass.SetLoc(screenWidth/2-p.buttonPass.sprite.ImageWidth/2, screenHeight/2-p.buttonPass.sprite.ImageHeight/2)
+
+	p.pickingTrumpReady = true
 }
 
 func (p *GameActivePage) UpdatePickingTrump() {
@@ -184,6 +249,9 @@ func (p *GameActivePage) UpdatePickingTrump() {
 		p.buttonConfirm.Update(x, y, mouseButtonPressed)
 		p.buttonPass.Update(x, y, mouseButtonPressed)
 	} else {
+		if !p.pickingTrumpReady {
+			p.InitPickingTrumpButtons()
+		}
 		p.buttonHearts.Update(x, y, mouseButtonPressed)
 		p.buttonDiamonds.Update(x, y, mouseButtonPressed)
 		p.buttonClubs.Update(x, y, mouseButtonPressed)
@@ -280,6 +348,10 @@ func (p *GameActivePage) Draw(screen *ebiten.Image) {
 	} else if p.state.trumpSuit == nil {
 		p.overlay.Draw(screen)
 
+		if p.previewCard != nil && p.state.passCounter < 4 {
+			p.previewCard.Draw(screen, op)
+		}
+
 		// **Everything on top of fade overlay start here**
 
 		if p.state.activePlayer == p.state.GetClient().AbsPos {
@@ -294,25 +366,23 @@ func (p *GameActivePage) Draw(screen *ebiten.Image) {
 					OffsetX float64
 					OffsetY float64
 				}
-				suitTexts := []SuitText{
-					{Suit: "Hearts", OffsetX: -140, OffsetY: -50},
-					{Suit: "Diamonds", OffsetX: +140, OffsetY: -50},
-					{Suit: "Clubs", OffsetX: -140, OffsetY: +60},
-					{Suit: "Spades", OffsetX: +140, OffsetY: +60},
-				}
-
-				for _, suitText := range suitTexts {
-					txtOp := text.DrawOptions{}
-					txtW, txtH := text.Measure(suitText.Suit, p.fontFace, 0)
-					centeredX, centeredY := screenWidth/2-txtW/2, screenHeight/2-txtH/2
-					txtOp.GeoM.Translate(centeredX+suitText.OffsetX, centeredY+suitText.OffsetY)
-					text.Draw(screen, suitText.Suit, p.fontFace, &txtOp)
-				}
 
 				p.buttonHearts.Draw(screen, op)
+				if p.buttonHearts.sprite.Visible {
+					p.textHearts.Draw(screen, op)
+				}
 				p.buttonDiamonds.Draw(screen, op)
+				if p.buttonDiamonds.sprite.Visible {
+					p.textDiamonds.Draw(screen, op)
+				}
 				p.buttonClubs.Draw(screen, op)
+				if p.buttonClubs.sprite.Visible {
+					p.textClubs.Draw(screen, op)
+				}
 				p.buttonSpades.Draw(screen, op)
+				if p.buttonSpades.sprite.Visible {
+					p.textSpades.Draw(screen, op)
+				}
 
 				if p.state.passCounter < 7 {
 					p.buttonPass.Draw(screen, op)
