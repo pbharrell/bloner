@@ -1,9 +1,9 @@
 Beta 1!
-- [ ] Do a nice message when lobby rejected
-- [ ] Fix cards drawing too low (arrangehand bug?) ((MAYBE FIXED))
-- [ ] Add cooldown period after hand taken + popup!
-- [ ] Show draw pile only when choosing, then hide
 - [ ] Add current trump indicator
+- [ ] Fix cards drawing too low (arrangehand bug?) ((MAYBE FIXED))
+- [x] Show draw pile only when choosing, then hide?
+- [x] Add cooldown period after hand taken + popup!
+- [x] Do a nice message when lobby rejected
 - [x] Make server return fail for nonexistent server id
 - [x] Fix waiting for lobby if lobby closed already
 - [x] Fix card pickup crash

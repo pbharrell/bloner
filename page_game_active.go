@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -86,6 +87,8 @@ func CreateGameActivePage(g *Game) *GameActivePage {
 }
 
 func (p *GameActivePage) HandleHandFinish() {
+	toastTxt := ""
+
 	teamBlackTricks := 0
 	teamRedTricks := 0
 	for i := range p.state.teams {
@@ -104,16 +107,22 @@ func (p *GameActivePage) HandleHandFinish() {
 	if teamBlackTricks > teamRedTricks {
 		if teamBlackTricks == 5 {
 			p.state.teams[Black].points += 2
+			toastTxt += "\nBlack team awarded 2 points!"
 		} else {
 			p.state.teams[Black].points++
+			toastTxt += "\nBlack team awarded 1 point!"
 		}
 	} else if teamBlackTricks < teamRedTricks {
 		if teamRedTricks == 5 {
 			p.state.teams[Red].points += 2
+			toastTxt += "\nRed team awarded 2 points!"
 		} else {
 			p.state.teams[Red].points++
+			toastTxt += "\nRed team awarded 1 point!"
 		}
 	}
+
+	p.game.ShowToast(toastTxt, 5*time.Second)
 
 	p.state.DealCards()
 
@@ -152,8 +161,6 @@ func (p *GameActivePage) Update() {
 
 	if len(p.state.trick.Pile) >= 4 {
 		highestCard := GetHighestCardFromPile(p.state.trick.Pile, p.state.trick.LeadSuit, *p.state.trumpSuit)
-		println("Highest card returned from pile:", SuitToString(highestCard.Suit), NumberToString(highestCard.Number))
-		println("Highest card player id:", highestCard.PlayerId)
 		p.state.GetPlayerById(highestCard.PlayerId).WinTrick(p.state.id)
 		p.state.trick.clear()
 	}
