@@ -1,6 +1,7 @@
 Beta 1!
 - [ ] Add current trump indicator
 - [ ] Fix cards drawing too low (arrangehand bug?) ((MAYBE FIXED))
+- [x] Center trick
 - [x] Show draw pile only when choosing, then hide?
 - [x] Add cooldown period after hand taken + popup!
 - [x] Do a nice message when lobby rejected

@@ -111,9 +111,10 @@ func CreateGameState(id int) GameState {
 	s.teams[Black].players[1] = CreatePlayer(2, Black, 5, Top, .1, &s.drawPile /* faceDown */, false, 0)
 	s.teams[Red].players[1] = CreatePlayer(3, Red, 5, Right, .1, &s.drawPile /* faceDown */, false, 0)
 
-	s.trick.X = screenWidth/2 + 20
-	s.trick.Y = screenHeight/2 - s.drawPile.Sprite.ImageHeight/2
-	s.trick.playCard(s.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
+	s.trick.playCard(s.drawPile.drawCard(.1, 0, 0, 0 /*faceDown */, false))
+	s.trick.X = screenWidth/2 - s.trick.Sprite.ImageWidth/2
+	s.trick.Y = screenHeight/2 - s.trick.Sprite.ImageHeight/2
+	s.trick.SyncSprite()
 
 	s.trumpDrawPlayer = 0
 	s.activePlayer = s.GetNextPlayerByAbsPos(s.trumpDrawPlayer).AbsPos
