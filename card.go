@@ -112,8 +112,7 @@ func initCardImageFiles() {
 		}
 	}
 
-	// FIXME: THIS IS FACE-DOWN CARD IMAGE SOMEDAY
-	blankImageFilename = "assets/blank.png"
+	blankImageFilename = "assets/cards/Back.png"
 }
 
 func initCardImages() {
