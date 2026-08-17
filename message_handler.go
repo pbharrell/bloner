@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/pbharrell/bloner-server/connection"
 )
@@ -70,6 +71,10 @@ func (g *Game) HandleMessage(msg connection.Message) {
 		}
 
 		g.HandleLobbyAssignMessage(lobbyAssign)
+
+	case "lobby_decline":
+		g.ShowToast("Lobby request declined.\nEither create a new or join an existing lobby.", 2*time.Second)
+		g.PopPage()
 
 	case "game_start":
 		var gameStart connection.GameStart

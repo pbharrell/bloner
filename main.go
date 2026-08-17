@@ -9,6 +9,8 @@ import (
 	_ "image/png"
 	"log"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -129,6 +131,7 @@ type Game struct {
 	lobbyId    int
 	fontSource *text.GoTextFaceSource
 	pageStack  []Page
+	toast      *Toast
 }
 
 func (g *Game) init() {
@@ -183,6 +186,12 @@ func (g *Game) PushPage(p Page) {
 
 func (g *Game) PopPage() {
 	g.pageStack = g.pageStack[:len(g.pageStack)-1]
+}
+
+func (g *Game) ShowToast(message string, duration time.Duration) {
+	if duration > 0 {
+		g.toast = &Toast{message: message, expires: time.Now().Add(duration)}
+	}
 }
 
 func (s *GameState) GetPlayerByAbsPos(absPos PlayPos) *Player {
@@ -376,6 +385,46 @@ func (g *Game) Update() error {
 	return nil
 }
 
+func (g *Game) drawToast(screen *ebiten.Image) {
+	if g.toast == nil {
+		return
+	}
+	if time.Now().After(g.toast.expires) {
+		g.toast = nil
+		return
+	}
+
+	face := &text.GoTextFace{Source: g.fontSource, Size: 22}
+	lines := strings.Split(g.toast.message, "\n")
+	lineWidths := make([]float64, len(lines))
+	lineHeights := make([]float64, len(lines))
+	var width, height float64
+	for i, line := range lines {
+		lineWidths[i], lineHeights[i] = text.Measure(line, face, 0)
+		width = max(width, lineWidths[i])
+		height += lineHeights[i]
+	}
+	const lineSpacing = 4
+	height += float64(max(0, len(lines)-1) * lineSpacing)
+
+	toast := ebiten.NewImage(int(width)+32, int(height)+20)
+	toast.Fill(color.RGBA{0, 0, 0, 220})
+
+	toastOp := ebiten.DrawImageOptions{}
+	toastX := float64(screenWidth-int(width)-32) / 2
+	toastY := float64(screenHeight - int(height) - 60)
+	toastOp.GeoM.Translate(toastX, toastY)
+	screen.DrawImage(toast, &toastOp)
+
+	lineY := toastY + 10
+	for i, line := range lines {
+		textOp := text.DrawOptions{}
+		textOp.GeoM.Translate(float64(screenWidth-int(lineWidths[i]))/2, lineY)
+		text.Draw(screen, line, face, &textOp)
+		lineY += lineHeights[i] + lineSpacing
+	}
+}
+
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{161, 191, 123, 1})
 
@@ -383,6 +432,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		panic("Ran `Game.Draw()` with an empty page stack!")
 	}
 	g.pageStack[len(g.pageStack)-1].Draw(screen)
+	g.drawToast(screen)
+
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {

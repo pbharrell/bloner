@@ -1,10 +1,11 @@
 Beta 1!
-- [ ] Fix cards drawing too low (arrangehand bug?)
-- [ ] Fix waiting for lobby if lobby closed already
-- [ ] Make server return fail for nonexistent server id
+- [ ] Do a nice message when lobby rejected
+- [ ] Fix cards drawing too low (arrangehand bug?) ((MAYBE FIXED))
 - [ ] Add cooldown period after hand taken + popup!
 - [ ] Show draw pile only when choosing, then hide
 - [ ] Add current trump indicator
+- [x] Make server return fail for nonexistent server id
+- [x] Fix waiting for lobby if lobby closed already
 - [x] Fix card pickup crash
 - [x] Remove draw pile once not needed (second round pick, playing)
 - [x] Display card during choosing phase

@@ -1,9 +1,16 @@
 package main
 
 import (
+	"time"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
+
+type Toast struct {
+	message string
+	expires time.Time
+}
 
 type Text struct {
 	x        int
