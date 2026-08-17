@@ -73,6 +73,12 @@ func LoadImage(i *[]byte) *ebiten.Image {
 	return ei
 }
 
+func (s *Sprite) SyncSpriteDimensions() {
+	rawW, rawH := s.Image.Bounds().Dx(), s.Image.Bounds().Dy()
+	scaledW, scaledH := int(float64(rawW)*s.ImageScale), int(float64(rawH)*s.ImageScale)
+	s.ImageWidth, s.ImageHeight = scaledW, scaledH
+}
+
 func CreateSprite(image *ebiten.Image, alphaImage *image.Alpha, scale float64, x int, y int, angle int, vx int, vy int, vangle int) *Sprite {
 	rawW, rawH := image.Bounds().Dx(), image.Bounds().Dy()
 	scaledW, scaledH := int(float64(rawW)*scale), int(float64(rawH)*scale)

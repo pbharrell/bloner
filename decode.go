@@ -55,7 +55,6 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 	case connection.TrumpPass:
 		gameActivePage.state.passCounter++
 		gameActivePage.state.SetActiveAbsPos(gameActivePage.state.GetNextPlayerById(turnInfo.PlayerId).AbsPos)
-		break
 	case connection.TrumpPick:
 		if turnInfo.TrumpPick < 0 {
 			// Don't want to repeat picking up trump, since client already did it
@@ -69,11 +68,9 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 			gameActivePage.state.activePlayer = gameActivePage.state.trumpDrawPlayer
 			gameActivePage.state.trick.clear()
 		}
-		break
 	case connection.TrumpDiscard:
 		gameActivePage.state.GetPlayerById(turnInfo.PlayerId).DiscardEncoded(turnInfo.TrumpDiscard, gameActivePage.state.id)
 		gameActivePage.state.activePlayer = gameActivePage.state.trumpDrawPlayer
-		break
 	case connection.CardPlay:
 		if turnInfo.PlayerId != gameActivePage.state.id {
 			turnPlayer := gameActivePage.state.GetPlayerById(turnInfo.PlayerId)
@@ -81,7 +78,6 @@ func (g *Game) DecodeTurnInfo(turnInfo connection.TurnInfo) {
 			gameActivePage.state.PlayCard(turnPlayer.Id, turnPlayer.GetCardInd(cardPlayed))
 			gameActivePage.state.activePlayer = gameActivePage.state.GetNextPlayerById(turnInfo.PlayerId).AbsPos
 		}
-		break
 	}
 
 }

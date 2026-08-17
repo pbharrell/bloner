@@ -18,7 +18,8 @@ type GameActivePage struct {
 	state             GameState
 	fontFace          *text.GoTextFace
 	overlay           graphics.Shape
-	previewCard       *Card
+	previewCardInited bool
+	previewCard       Card
 	buttonPass        Button
 	buttonConfirm     Button
 	buttonHearts      Button
@@ -45,8 +46,8 @@ func CreateGameActivePage(g *Game) *GameActivePage {
 		pickingTrumpReady: false,
 		state:             CreateGameState(g.id),
 		fontFace:          fontFace,
+		previewCardInited: false,
 		overlay:           overlay,
-		previewCard:       nil,
 	}
 
 	buttonConfirm := *CreateButton(page, g, confirmTrump, "assets/confirm_button.png", "assets/confirm_button_pressed.png", 4, 0, screenHeight/2+80, 0)
@@ -116,6 +117,7 @@ func (p *GameActivePage) HandleHandFinish() {
 
 	p.state.DealCards()
 
+	p.previewCardInited = false
 	p.state.trick.playCard(p.state.drawPile.drawCard(.1, screenWidth/2+20, 0, 0 /*faceDown */, false))
 	p.state.trumpDrawPlayer = (p.state.trumpDrawPlayer + 1) % 4
 	p.state.activePlayer += p.state.trumpDrawPlayer
@@ -134,10 +136,13 @@ func (p *GameActivePage) Update() {
 
 	}
 
-	if p.ready && p.previewCard == nil {
-		p.previewCard = p.state.drawPile.drawCard(.15, screenWidth/2, screenHeight/2-30, 0 /*faceDown */, false)
-		p.previewCard.Sprite.X = p.previewCard.Sprite.X - p.previewCard.Sprite.ImageWidth/2
-		p.previewCard.Sprite.Y = p.previewCard.Sprite.Y - p.previewCard.Sprite.ImageHeight/2
+	if p.ready && !p.previewCardInited && len(p.state.trick.Pile) > 0 {
+		p.previewCard = *p.state.trick.Pile[len(p.state.trick.Pile)-1]
+		p.previewCard.Sprite.ImageScale = .22
+		p.previewCard.Sprite.SyncSpriteDimensions()
+		p.previewCard.Sprite.X = screenWidth/2 - p.previewCard.Sprite.ImageWidth/2
+		p.previewCard.Sprite.Y = screenHeight/2 - p.previewCard.Sprite.ImageHeight/2 - 50
+		p.previewCardInited = true
 	}
 
 	client := p.state.GetClient()
@@ -179,8 +184,6 @@ func (p *GameActivePage) UpdateClientDiscard() {
 					println("Failed to discard card from hand!! Should not be here.")
 				}
 
-				// FIXME: PREVIEW CARD DISAPPEARS
-				p.previewCard = nil
 				p.SendTurnTrumpDiscard(discarded)
 				break
 			}
@@ -348,7 +351,7 @@ func (p *GameActivePage) Draw(screen *ebiten.Image) {
 	} else if p.state.trumpSuit == nil {
 		p.overlay.Draw(screen)
 
-		if p.previewCard != nil && p.state.passCounter < 4 {
+		if p.previewCardInited && p.state.passCounter < 4 {
 			p.previewCard.Draw(screen, op)
 		}
 
